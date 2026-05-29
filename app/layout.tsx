@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { CartProvider } from "./lib/cart";
-// 💡 We removed the AuthProvider import line entirely
+import Navbar from "@/components/Navbar"; // 💡 Import your new Navbar
 
 export const metadata: Metadata = {
   title: "GlobalHub — Sports Signals",
@@ -16,9 +16,13 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body>
-        {/* 💡 We removed the <AuthProvider> tags entirely */}
+        {/* Navbar is outside CartProvider because it's global UI */}
+        <Navbar /> 
+        
         <CartProvider>
-          {children}
+          <main className="min-h-screen">
+            {children}
+          </main>
         </CartProvider>
       </body>
     </html>
