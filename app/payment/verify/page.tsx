@@ -1,10 +1,13 @@
 "use client";
-import { useEffect, useState, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { Trophy, CheckCircle, XCircle } from 'lucide-react';
 
-// We move the logic into a child component so it can be wrapped in Suspense
+import { useEffect, useState, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import { CheckCircle, XCircle } from 'lucide-react';
+
+// Explicitly mark this route as dynamic to prevent static pre-rendering errors
+export const dynamic = 'force-dynamic';
+
 function VerifyContent() {
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<'loading' | 'success' | 'failed'>('loading');
@@ -117,15 +120,18 @@ function VerifyContent() {
 
   return (
     <div style={{ minHeight: '100dvh', background: '#0a1628', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: '-apple-system, sans-serif' }}>
-        {/* ... failure state UI code ... */}
+        <div style={{ maxWidth: '400px', width: '100%', textAlign: 'center', color: 'white' }}>
+            <XCircle size={64} color="#f87171" style={{ margin: '0 auto 20px' }} />
+            <h2>Payment Failed</h2>
+            <Link href="/pricing" style={{ color: '#22c55e' }}>Try again</Link>
+        </div>
     </div>
   );
 }
 
-// Wrap the main export in Suspense
 export default function VerifyPage() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={<div style={{ color: 'white', textAlign: 'center', marginTop: '50px' }}>Loading...</div>}>
       <VerifyContent />
     </Suspense>
   );
