@@ -624,7 +624,7 @@ function FootballCard({ t }: { t: typeof translations.en }) {
 // ─── Aviator Card ──────────────────────────────
 function AviatorCard({ t }: { t: typeof translations.en }) {
   const [mult, setMult] = useState(1.00);
-  const [phase, setPhase] = useState<'flying' | 'crashed' | 'waiting'>('waiting');
+  const [phase, setPhase] = useState('waiting');
 
   useEffect(() => {
     let current = 1.00;
@@ -1541,6 +1541,8 @@ export default function Home() {
                 { l: t.terms, h: '/terms' },
                 { l: t.privacy, h: '/privacy' },
                 { l: t.responsible, h: '/responsible-gaming' },
+                { l: 'FAQ', h: '/faq' },
+                { l: 'support', h: '/support' },
               ].map(item => (
                 <Link key={item.l} href={item.h} style={{
                   color: '#374151', fontSize: '12px',

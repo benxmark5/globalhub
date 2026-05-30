@@ -2,8 +2,13 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Trophy, ArrowLeft, CheckCircle, Lock, ShoppingCart } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { Trophy, ArrowLeft, CheckCircle, Lock } from 'lucide-react';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 const footballPlans = [
   { games: 1, price: 1.20, label: '1 Game', bonus: 0 },
@@ -27,33 +32,166 @@ const aviatorPlans = [
   { tier: 'VVIP', signals: 12, price: 25 },
 ];
 
-type CartItem = {
-  id: string;
-  type: string;
-  name: string;
-  price: number;
-  league: string;
-};
+const getCurrencyInfo = () => {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-type StoredPlan = {
-  type: string;
-  index: number;
-  price: number;
-  isCart?: boolean;
-  cartItems?: CartItem[];
-  cartLabel?: string;
+    const map: Record<string, {
+      c: string; r: number; s: string; name: string
+    }> = {
+      // Africa
+      'Africa/Nairobi': { c: 'KES', r: 130, s: 'KES', name: 'Kenyan Shilling' },
+      'Africa/Lagos': { c: 'NGN', r: 1600, s: '₦', name: 'Nigerian Naira' },
+      'Africa/Accra': { c: 'GHS', r: 15, s: 'GH₵', name: 'Ghanaian Cedi' },
+      'Africa/Johannesburg': { c: 'ZAR', r: 19, s: 'R', name: 'South African Rand' },
+      'Africa/Kampala': { c: 'UGX', r: 3800, s: 'UGX', name: 'Ugandan Shilling' },
+      'Africa/Dar_es_Salaam': { c: 'TZS', r: 2600, s: 'TZS', name: 'Tanzanian Shilling' },
+      'Africa/Cairo': { c: 'EGP', r: 49, s: 'E£', name: 'Egyptian Pound' },
+      'Africa/Casablanca': { c: 'MAD', r: 10, s: 'MAD', name: 'Moroccan Dirham' },
+      'Africa/Addis_Ababa': { c: 'ETB', r: 57, s: 'ETB', name: 'Ethiopian Birr' },
+      'Africa/Abidjan': { c: 'XOF', r: 605, s: 'CFA', name: 'West African CFA Franc' },
+      'Africa/Dakar': { c: 'XOF', r: 605, s: 'CFA', name: 'West African CFA Franc' },
+      'Africa/Douala': { c: 'XAF', r: 605, s: 'FCFA', name: 'Central African CFA Franc' },
+      'Africa/Khartoum': { c: 'SDG', r: 600, s: 'SDG', name: 'Sudanese Pound' },
+      'Africa/Lusaka': { c: 'ZMW', r: 25, s: 'ZK', name: 'Zambian Kwacha' },
+      'Africa/Harare': { c: 'USD', r: 1, s: '$', name: 'US Dollar' },
+      'Africa/Maputo': { c: 'MZN', r: 64, s: 'MT', name: 'Mozambican Metical' },
+      'Africa/Tunis': { c: 'TND', r: 3.1, s: 'DT', name: 'Tunisian Dinar' },
+      'Africa/Tripoli': { c: 'LYD', r: 4.8, s: 'LD', name: 'Libyan Dinar' },
+      'Africa/Algiers': { c: 'DZD', r: 135, s: 'DA', name: 'Algerian Dinar' },
+      // Americas
+      'America/New_York': { c: 'USD', r: 1, s: '$', name: 'US Dollar' },
+      'America/Chicago': { c: 'USD', r: 1, s: '$', name: 'US Dollar' },
+      'America/Denver': { c: 'USD', r: 1, s: '$', name: 'US Dollar' },
+      'America/Los_Angeles': { c: 'USD', r: 1, s: '$', name: 'US Dollar' },
+      'America/Phoenix': { c: 'USD', r: 1, s: '$', name: 'US Dollar' },
+      'America/Anchorage': { c: 'USD', r: 1, s: '$', name: 'US Dollar' },
+      'America/Toronto': { c: 'CAD', r: 1.37, s: 'CA$', name: 'Canadian Dollar' },
+      'America/Vancouver': { c: 'CAD', r: 1.37, s: 'CA$', name: 'Canadian Dollar' },
+      'America/Sao_Paulo': { c: 'BRL', r: 5.1, s: 'R$', name: 'Brazilian Real' },
+      'America/Mexico_City': { c: 'MXN', r: 17, s: 'MX$', name: 'Mexican Peso' },
+      'America/Argentina/Buenos_Aires': { c: 'ARS', r: 870, s: '$', name: 'Argentine Peso' },
+      'America/Bogota': { c: 'COP', r: 3900, s: 'COL$', name: 'Colombian Peso' },
+      'America/Lima': { c: 'PEN', r: 3.8, s: 'S/', name: 'Peruvian Sol' },
+      'America/Santiago': { c: 'CLP', r: 950, s: 'CLP$', name: 'Chilean Peso' },
+      'America/Caracas': { c: 'VES', r: 36, s: 'Bs.S', name: 'Venezuelan Bolívar' },
+      'America/Guayaquil': { c: 'USD', r: 1, s: '$', name: 'US Dollar' },
+      'America/La_Paz': { c: 'BOB', r: 6.9, s: 'Bs', name: 'Bolivian Boliviano' },
+      'America/Asuncion': { c: 'PYG', r: 7400, s: '₲', name: 'Paraguayan Guaraní' },
+      'America/Montevideo': { c: 'UYU', r: 39, s: '$U', name: 'Uruguayan Peso' },
+      'America/Panama': { c: 'USD', r: 1, s: '$', name: 'US Dollar' },
+      'America/Costa_Rica': { c: 'CRC', r: 530, s: '₡', name: 'Costa Rican Colón' },
+      'America/Guatemala': { c: 'GTQ', r: 7.8, s: 'Q', name: 'Guatemalan Quetzal' },
+      'America/Havana': { c: 'CUP', r: 24, s: '$MN', name: 'Cuban Peso' },
+      'America/Jamaica': { c: 'JMD', r: 157, s: 'J$', name: 'Jamaican Dollar' },
+      // Europe
+      'Europe/London': { c: 'GBP', r: 0.79, s: '£', name: 'British Pound' },
+      'Europe/Paris': { c: 'EUR', r: 0.92, s: '€', name: 'Euro' },
+      'Europe/Berlin': { c: 'EUR', r: 0.92, s: '€', name: 'Euro' },
+      'Europe/Madrid': { c: 'EUR', r: 0.92, s: '€', name: 'Euro' },
+      'Europe/Rome': { c: 'EUR', r: 0.92, s: '€', name: 'Euro' },
+      'Europe/Amsterdam': { c: 'EUR', r: 0.92, s: '€', name: 'Euro' },
+      'Europe/Brussels': { c: 'EUR', r: 0.92, s: '€', name: 'Euro' },
+      'Europe/Lisbon': { c: 'EUR', r: 0.92, s: '€', name: 'Euro' },
+      'Europe/Athens': { c: 'EUR', r: 0.92, s: '€', name: 'Euro' },
+      'Europe/Helsinki': { c: 'EUR', r: 0.92, s: '€', name: 'Euro' },
+      'Europe/Vienna': { c: 'EUR', r: 0.92, s: '€', name: 'Euro' },
+      'Europe/Dublin': { c: 'EUR', r: 0.92, s: '€', name: 'Euro' },
+      'Europe/Moscow': { c: 'RUB', r: 90, s: '₽', name: 'Russian Ruble' },
+      'Europe/Istanbul': { c: 'TRY', r: 32, s: '₺', name: 'Turkish Lira' },
+      'Europe/Warsaw': { c: 'PLN', r: 4.0, s: 'zł', name: 'Polish Zloty' },
+      'Europe/Stockholm': { c: 'SEK', r: 10.5, s: 'kr', name: 'Swedish Krona' },
+      'Europe/Oslo': { c: 'NOK', r: 10.8, s: 'kr', name: 'Norwegian Krone' },
+      'Europe/Copenhagen': { c: 'DKK', r: 6.9, s: 'kr', name: 'Danish Krone' },
+      'Europe/Zurich': { c: 'CHF', r: 0.90, s: 'Fr', name: 'Swiss Franc' },
+      'Europe/Prague': { c: 'CZK', r: 23, s: 'Kč', name: 'Czech Koruna' },
+      'Europe/Budapest': { c: 'HUF', r: 360, s: 'Ft', name: 'Hungarian Forint' },
+      'Europe/Bucharest': { c: 'RON', r: 4.6, s: 'lei', name: 'Romanian Leu' },
+      'Europe/Sofia': { c: 'BGN', r: 1.8, s: 'лв', name: 'Bulgarian Lev' },
+      'Europe/Kiev': { c: 'UAH', r: 39, s: '₴', name: 'Ukrainian Hryvnia' },
+      'Europe/Minsk': { c: 'BYN', r: 3.2, s: 'Br', name: 'Belarusian Ruble' },
+      'Europe/Riga': { c: 'EUR', r: 0.92, s: '€', name: 'Euro' },
+      'Europe/Tallinn': { c: 'EUR', r: 0.92, s: '€', name: 'Euro' },
+      'Europe/Vilnius': { c: 'EUR', r: 0.92, s: '€', name: 'Euro' },
+      'Europe/Belgrade': { c: 'RSD', r: 107, s: 'din', name: 'Serbian Dinar' },
+      'Europe/Zagreb': { c: 'EUR', r: 0.92, s: '€', name: 'Euro' },
+      // Asia
+      'Asia/Tokyo': { c: 'JPY', r: 150, s: '¥', name: 'Japanese Yen' },
+      'Asia/Shanghai': { c: 'CNY', r: 7.2, s: '¥', name: 'Chinese Yuan' },
+      'Asia/Beijing': { c: 'CNY', r: 7.2, s: '¥', name: 'Chinese Yuan' },
+      'Asia/Hong_Kong': { c: 'HKD', r: 7.8, s: 'HK$', name: 'Hong Kong Dollar' },
+      'Asia/Singapore': { c: 'SGD', r: 1.35, s: 'S$', name: 'Singapore Dollar' },
+      'Asia/Seoul': { c: 'KRW', r: 1350, s: '₩', name: 'South Korean Won' },
+      'Asia/Kolkata': { c: 'INR', r: 83, s: '₹', name: 'Indian Rupee' },
+      'Asia/Colombo': { c: 'LKR', r: 310, s: 'Rs', name: 'Sri Lankan Rupee' },
+      'Asia/Dhaka': { c: 'BDT', r: 110, s: '৳', name: 'Bangladeshi Taka' },
+      'Asia/Kathmandu': { c: 'NPR', r: 133, s: 'Rs', name: 'Nepalese Rupee' },
+      'Asia/Karachi': { c: 'PKR', r: 279, s: 'Rs', name: 'Pakistani Rupee' },
+      'Asia/Dubai': { c: 'AED', r: 3.67, s: 'AED', name: 'UAE Dirham' },
+      'Asia/Riyadh': { c: 'SAR', r: 3.75, s: 'SAR', name: 'Saudi Riyal' },
+      'Asia/Tehran': { c: 'IRR', r: 42000, s: 'IRR', name: 'Iranian Rial' },
+      'Asia/Baghdad': { c: 'IQD', r: 1310, s: 'IQD', name: 'Iraqi Dinar' },
+      'Asia/Kuala_Lumpur': { c: 'MYR', r: 4.7, s: 'RM', name: 'Malaysian Ringgit' },
+      'Asia/Manila': { c: 'PHP', r: 56, s: '₱', name: 'Philippine Peso' },
+      'Asia/Bangkok': { c: 'THB', r: 35, s: '฿', name: 'Thai Baht' },
+      'Asia/Jakarta': { c: 'IDR', r: 15800, s: 'Rp', name: 'Indonesian Rupiah' },
+      'Asia/Taipei': { c: 'TWD', r: 32, s: 'NT$', name: 'New Taiwan Dollar' },
+      'Asia/Amman': { c: 'JOD', r: 0.71, s: 'JD', name: 'Jordanian Dinar' },
+      'Asia/Kuwait': { c: 'KWD', r: 0.31, s: 'KD', name: 'Kuwaiti Dinar' },
+      'Asia/Beirut': { c: 'LBP', r: 89000, s: 'L£', name: 'Lebanese Pound' },
+      'Asia/Muscat': { c: 'OMR', r: 0.38, s: 'OMR', name: 'Omani Rial' },
+      'Asia/Qatar': { c: 'QAR', r: 3.64, s: 'QR', name: 'Qatari Riyal' },
+      'Asia/Bahrain': { c: 'BHD', r: 0.38, s: 'BD', name: 'Bahraini Dinar' },
+      'Asia/Yerevan': { c: 'AMD', r: 400, s: '֏', name: 'Armenian Dram' },
+      'Asia/Tbilisi': { c: 'GEL', r: 2.7, s: '₾', name: 'Georgian Lari' },
+      'Asia/Baku': { c: 'AZN', r: 1.7, s: '₼', name: 'Azerbaijani Manat' },
+      'Asia/Tashkent': { c: 'UZS', r: 12500, s: 'soʻm', name: 'Uzbekistani Som' },
+      'Asia/Almaty': { c: 'KZT', r: 455, s: '₸', name: 'Kazakhstani Tenge' },
+      'Asia/Ho_Chi_Minh': { c: 'VND', r: 25000, s: '₫', name: 'Vietnamese Dong' },
+      'Asia/Phnom_Penh': { c: 'KHR', r: 4100, s: '៛', name: 'Cambodian Riel' },
+      'Asia/Rangoon': { c: 'MMK', r: 2100, s: 'K', name: 'Myanmar Kyat' },
+      'Asia/Ulaanbaatar': { c: 'MNT', r: 3400, s: '₮', name: 'Mongolian Tögrög' },
+      // Oceania
+      'Australia/Sydney': { c: 'AUD', r: 1.53, s: 'A$', name: 'Australian Dollar' },
+      'Australia/Melbourne': { c: 'AUD', r: 1.53, s: 'A$', name: 'Australian Dollar' },
+      'Australia/Brisbane': { c: 'AUD', r: 1.53, s: 'A$', name: 'Australian Dollar' },
+      'Australia/Perth': { c: 'AUD', r: 1.53, s: 'A$', name: 'Australian Dollar' },
+      'Pacific/Auckland': { c: 'NZD', r: 1.63, s: 'NZ$', name: 'New Zealand Dollar' },
+      'Pacific/Fiji': { c: 'FJD', r: 2.25, s: 'FJ$', name: 'Fijian Dollar' },
+      'Pacific/Honolulu': { c: 'USD', r: 1, s: '$', name: 'US Dollar' },
+    };
+
+    if (map[tz]) return map[tz];
+
+    const tzPrefix = tz.split('/')[0];
+    const found = Object.entries(map).find(
+      ([key]) => key.startsWith(tzPrefix)
+    );
+    if (found) return found[1];
+
+    return { c: 'USD', r: 1, s: '$', name: 'US Dollar' };
+  } catch {
+    return { c: 'USD', r: 1, s: '$', name: 'US Dollar' };
+  }
 };
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const [plan, setPlan] = useState<StoredPlan | null>(null);
+  const [plan, setPlan] = useState<{
+    type: string; index: number; price: number;
+    isCart?: boolean; cartItems?: {
+      id: string; type: string; name: string;
+      price: number; league?: string;
+    }[];
+    cartLabel?: string; signalsCount?: number;
+  } | null>(null);
   const [user, setUser] = useState<{
-    id: string;
-    email?: string;
+    id: string; email?: string;
     user_metadata?: { full_name?: string };
   } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [currency] = useState(() => getCurrencyInfo());
 
   useEffect(() => {
     const stored = localStorage.getItem('selectedPlan');
@@ -71,62 +209,61 @@ export default function CheckoutPage() {
   }, [router]);
 
   const getDetails = () => {
-    if (!plan || plan.isCart) return null;
+    if (!plan) return null;
+    if (plan.isCart) return null;
     if (plan.type === 'football') {
       return footballPlans[plan.index] || footballPlans[0];
     }
-    const idx = plan.index >= 200 ? 0
+    const aviatorIndex = plan.index >= 200 ? 0
       : plan.index >= 100 ? plan.index - 100 : 0;
-    return aviatorPlans[Math.min(idx, aviatorPlans.length - 1)];
+    return aviatorPlans[
+      Math.min(aviatorIndex, aviatorPlans.length - 1)
+    ];
   };
 
   const details = getDetails();
-
-  // Check if this is a cart checkout
   const isCart = plan?.isCart === true;
-  const cartItems = plan?.cartItems || [];
-  const cartLabel = plan?.cartLabel || '';
 
-  // Amount — use plan price directly if cart (already calculated in cart)
-  const amountKES = isCart
-    ? Math.ceil((plan?.price || 0) * 130)
-    : details
-    ? Math.floor(details.price * 130)
-    : 0;
+  // Calculate amount in local currency
+  const usdPrice = isCart
+    ? (plan?.price || 0)
+    : (details?.price || 0);
+
+  const localAmount = Math.ceil(usdPrice * currency.r);
 
   const handlePay = async () => {
-    if (!user || (!details && !isCart) || !plan) return;
+    if (!user || !plan) return;
     setLoading(true);
     setError('');
 
     try {
-      const signalCount = isCart
-        ? cartItems.length
-        : details && 'signals' in details
-        ? details.signals
-        : details && 'games' in details ? details.games : 1;
+      let signalCount = plan.signalsCount || 1;
+      let bonus = 0;
+      let label = plan.cartLabel || 'Signal Package';
 
-      const bonus = details && 'bonus' in details ? details.bonus : 0;
-
-      const label = isCart
-        ? cartLabel
-        : details && 'tier' in details
-        ? `Aviator ${details.tier}`
-        : `Football ${details && 'label' in details ? details.label : ''}`;
+      if (!isCart && details) {
+        signalCount = 'signals' in details
+          ? details.signals
+          : 'games' in details ? details.games : 1;
+        bonus = 'bonus' in details ? details.bonus : 0;
+        label = 'tier' in details
+          ? `Aviator ${details.tier}`
+          : `Football ${'label' in details
+            ? details.label : ''}`;
+      }
 
       const res = await fetch('/api/paystack/initialize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: user.email,
-          amount: amountKES,
+          amount: localAmount,
+          currency: currency.c,
           userId: user.id,
           planType: plan.type,
           signalsCount: signalCount,
           bonusSignals: bonus,
           planLabel: label,
-          // Pass metadata securely if your backend reads explicit cart items
-          metadata: isCart ? { cartItems } : undefined
         }),
       });
 
@@ -134,7 +271,6 @@ export default function CheckoutPage() {
 
       if (data.success && data.authorizationUrl) {
         localStorage.removeItem('selectedPlan');
-        // Redirect to Paystack
         window.location.href = data.authorizationUrl;
       } else {
         setError(data.error || 'Payment initialization failed');
@@ -147,7 +283,7 @@ export default function CheckoutPage() {
     }
   };
 
-  if (!plan || (!details && !isCart)) {
+  if (!plan) {
     return (
       <div style={{
         minHeight: '100dvh', background: '#0a1628',
@@ -164,12 +300,13 @@ export default function CheckoutPage() {
   }
 
   const signalCount = isCart
-    ? cartItems.length
-    : details && 'signals' in details
-    ? details.signals
-    : details && 'games' in details ? details.games : 1;
-    
-  const bonus = details && 'bonus' in details ? details.bonus : 0;
+    ? (plan.signalsCount || 0)
+    : details
+    ? ('signals' in details ? details.signals
+      : 'games' in details ? details.games : 1)
+    : 1;
+  const bonus = !isCart && details && 'bonus' in details
+    ? details.bonus : 0;
 
   return (
     <div style={{
@@ -191,7 +328,7 @@ export default function CheckoutPage() {
         }}>
           <button
             type="button"
-            onClick={() => router.push(isCart ? '/cart' : '/pricing')}
+            onClick={() => router.push('/pricing')}
             style={{
               background: 'none', border: 'none',
               color: '#9ca3af', cursor: 'pointer',
@@ -248,17 +385,22 @@ export default function CheckoutPage() {
           }}>
             <div>
               {isCart ? (
-                <div>
-                  <p style={{ fontWeight: 900, fontSize: '18px', marginBottom: '6px' }}>
-                    <ShoppingCart size={18} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'text-bottom' }} />
-                    Cart Checkout
+                <>
+                  <p style={{
+                    fontWeight: 900, fontSize: '18px',
+                    marginBottom: '4px'
+                  }}>
+                    🛒 {signalCount} Signals Bundle
                   </p>
-                  <p style={{ color: '#9ca3af', fontSize: '13px' }}>
-                    {signalCount} Custom Selected Items
+                  <p style={{
+                    color: '#22c55e', fontSize: '13px',
+                    fontWeight: 700
+                  }}>
+                    {plan.cartLabel}
                   </p>
-                </div>
+                </>
               ) : (
-                <div>
+                <>
                   <p style={{
                     fontWeight: 900, fontSize: '18px',
                     marginBottom: '4px'
@@ -277,41 +419,40 @@ export default function CheckoutPage() {
                       🎁 +{bonus} FREE bonus signals!
                     </p>
                   )}
-                </div>
+                </>
               )}
             </div>
+
+            {/* Price in local currency */}
             <div style={{ textAlign: 'right' }}>
               <p style={{
-                fontWeight: 900, fontSize: '24px',
-                fontFamily: 'monospace', color: '#22c55e'
+                fontWeight: 900, fontSize: '26px',
+                fontFamily: 'monospace', color: '#22c55e',
+                lineHeight: 1
               }}>
-                KES {amountKES.toLocaleString()}
+                {currency.s}{localAmount.toLocaleString()}
               </p>
-              <p style={{ color: '#6b7280', fontSize: '12px' }}>
-                ≈ ${(plan?.price || 0).toFixed(2)} USD
+              <p style={{
+                color: '#6b7280', fontSize: '11px',
+                marginTop: '4px'
+              }}>
+                ≈ ${usdPrice.toFixed(2)} USD
+              </p>
+              <p style={{
+                color: '#374151', fontSize: '11px',
+                marginTop: '2px'
+              }}>
+                {currency.name}
               </p>
             </div>
           </div>
 
-          {/* Cart Specific Itemized List Preview */}
-          {isCart && cartItems.length > 0 && (
-            <div style={{
-              margin: '12px 0', padding: '10px 0',
-              borderTop: '1px dashed #1a2740',
-              display: 'flex', flexDirection: 'column', gap: '6px'
-            }}>
-              {cartItems.map((item, index) => (
-                <div key={item.id || index} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#9ca3af' }}>
-                  <span>{item.type === 'football' ? '⚽' : '✈️'} {item.name || 'Signal Item'}</span>
-                  <span style={{ fontFamily: 'monospace' }}>${(item.price || 3).toFixed(2)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
+          {/* Benefits */}
           <div style={{
-            borderTop: '1px solid #1a2740', paddingTop: '12px',
-            display: 'flex', gap: '16px', flexWrap: 'wrap'
+            borderTop: '1px solid #1a2740',
+            paddingTop: '12px',
+            display: 'flex', flexWrap: 'wrap',
+            gap: '12px'
           }}>
             {[
               { icon: '✅', text: 'Unlocks instantly' },
@@ -347,9 +488,7 @@ export default function CheckoutPage() {
               }}>
                 Paying As
               </p>
-              <p style={{
-                fontWeight: 700, fontSize: '14px'
-              }}>
+              <p style={{ fontWeight: 700, fontSize: '14px' }}>
                 {user?.email}
               </p>
             </div>
@@ -365,10 +504,50 @@ export default function CheckoutPage() {
           </div>
         </div>
 
-        {/* Paystack Info */}
+        {/* Currency Info */}
         <div style={{
           background: 'rgba(34,197,94,0.05)',
           border: '1px solid rgba(34,197,94,0.15)',
+          borderRadius: '14px', padding: '14px 16px',
+          marginBottom: '16px'
+        }}>
+          <div style={{
+            display: 'flex', alignItems: 'center',
+            justifyContent: 'space-between', marginBottom: '8px'
+          }}>
+            <p style={{
+              color: '#86efac', fontSize: '13px', fontWeight: 700
+            }}>
+              💱 Your Local Currency
+            </p>
+            <span style={{
+              background: 'rgba(34,197,94,0.1)',
+              color: '#22c55e', fontSize: '11px',
+              fontWeight: 700, padding: '3px 8px',
+              borderRadius: '20px'
+            }}>
+              {currency.c}
+            </span>
+          </div>
+          <p style={{
+            color: '#6b7280', fontSize: '13px', lineHeight: 1.6
+          }}>
+            You are being charged in{' '}
+            <strong style={{ color: '#9ca3af' }}>
+              {currency.name} ({currency.c})
+            </strong>
+            . The equivalent in USD is{' '}
+            <strong style={{ color: '#9ca3af' }}>
+              ${usdPrice.toFixed(2)}
+            </strong>
+            .
+          </p>
+        </div>
+
+        {/* Paystack Info */}
+        <div style={{
+          background: '#0f1f33',
+          border: '1px solid #1a2740',
           borderRadius: '14px', padding: '16px',
           marginBottom: '20px'
         }}>
@@ -382,10 +561,9 @@ export default function CheckoutPage() {
             </p>
           </div>
           <p style={{
-            color: '#6b7280', fontSize: '13px',
-            lineHeight: 1.6
+            color: '#6b7280', fontSize: '13px', lineHeight: 1.6
           }}>
-            You'll be redirected to Paystack's secure payment page.
+            You'll be redirected to Paystack's secure page.
             Pay with card, M-Pesa, or mobile money.
             No Paystack account needed.
           </p>
@@ -419,22 +597,19 @@ export default function CheckoutPage() {
             color: loading ? '#6b7280' : 'black',
             border: 'none', borderRadius: '16px',
             padding: '20px', fontSize: '18px',
-            fontWeight: 900, cursor: loading
-              ? 'not-allowed' : 'pointer',
+            fontWeight: 900,
+            cursor: loading ? 'not-allowed' : 'pointer',
             touchAction: 'manipulation',
-            display: 'block',
-            marginBottom: '14px',
+            display: 'block', marginBottom: '14px',
             boxShadow: loading
               ? 'none'
               : '0 8px 25px rgba(34,197,94,0.35)',
-            transition: 'all 0.2s',
-            position: 'relative',
-            zIndex: 1
+            transition: 'all 0.2s'
           }}
         >
           {loading
             ? '⏳ Redirecting...'
-            : `💳 Pay KES ${amountKES.toLocaleString()} via Paystack`
+            : `💳 Pay ${currency.s}${localAmount.toLocaleString()} via Paystack`
           }
         </button>
 
@@ -447,7 +622,8 @@ export default function CheckoutPage() {
             color: '#374151', fontSize: '12px',
             textAlign: 'center'
           }}>
-            Secured by Paystack · SSL Encrypted
+            Secured by Paystack · SSL Encrypted ·{' '}
+            {currency.name}
           </p>
         </div>
 
