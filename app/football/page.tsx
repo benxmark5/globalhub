@@ -48,8 +48,8 @@ export default function FootballPage() {
   const loadData = async (showRefresh = false) => {
     if (showRefresh) setRefreshing(true);
 
-    const { data: { user } } = await supabase.auth.getUser();
-    setUser(user);
+    const { data: { session } } = await supabase.auth.getSession();
+const user = session?.user ?? null;
 
     // Only load admin-pushed markets
     const { data: marketData } = await supabase
