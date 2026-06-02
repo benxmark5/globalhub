@@ -7,27 +7,22 @@ export async function POST(request: NextRequest) {
 
     if (!reference) {
       return Response.json(
-        { error: 'Reference required' },
-        { status: 400 }
+        { error: 'Reference required' }, { status: 400 }
       );
     }
 
     const secretKey = process.env.PAYSTACK_SECRET_KEY;
     if (!secretKey) {
       return Response.json(
-        { error: 'Payment not configured' },
-        { status: 500 }
+        { error: 'Not configured' }, { status: 500 }
       );
     }
 
     // Verify with Paystack
     const res = await fetch(
       `https://api.paystack.co/transaction/verify/${reference}`,
-      {
-        headers: { Authorization: `Bearer ${secretKey}` },
-      }
+      { headers: { Authorization: `Bearer ${secretKey}` } }
     );
-
     const data = await res.json();
 
     if (!data.status || data.data?.status !== 'success') {
@@ -51,37 +46,53 @@ export async function POST(request: NextRequest) {
 
     if (existing?.status === 'completed') {
       return Response.json({
-        paid: true,
-        reference,
+        paid: true, reference,
         amount: existing.amount,
         currency: existing.currency,
         alreadyProcessed: true
       });
     }
 
-    // Update to completed
-    await supabase
+    // Mark as completed
+    const { data: updated } = await supabase
       .from('purchases')
       .update({
         status: 'completed',
         completed_at: new Date().toISOString(),
+        email_sent: false,
       })
-      .eq('reference', reference);
+      .eq('reference', reference)
+      .select()
+      .single();
 
-    // Get user email
-    const { data: userData } = await supabase.auth.admin
-      .getUserById(existing?.user_id || '');
+    // Get user email from Paystack response
+    const userEmail = data.data?.customer?.email ||
+      existing?.email || '';
+    const userName = existing?.user_id
+      ? 'Valued Customer' : 'Customer';
 
-    const userEmail = userData?.user?.email ||
-      data.data?.customer?.email || '';
-    const userName = userData?.user?.user_metadata?.full_name
-      || 'Valued Customer';
+    // Send receipt email immediately
+    if (userEmail && updated && !existing?.email_sent) {
+      // Update email_sent flag
+      await supabase
+        .from('purchases')
+        .update({ email_sent: true })
+        .eq('reference', reference);
 
-    // Send receipt email
-    if (userEmail && existing) {
+      // Get current signals to include in email
+      const { data: signals } = await supabase
+        .from('markets')
+        .select('*')
+        .eq('is_live', true)
+        .not('league_name', 'eq',
+          updated.signal_type === 'football' ? 'AVIATOR' : 'FOOTBALL'
+        )
+        .limit(updated.signals_count || 1);
+
       const appUrl = process.env.NEXT_PUBLIC_APP_URL ||
-        'http://localhost:3000';
+        'https://globalhub.vercel.app';
 
+      // Send receipt with signals link
       fetch(`${appUrl}/api/send-receipt`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -89,14 +100,17 @@ export async function POST(request: NextRequest) {
           email: userEmail,
           name: userName,
           reference,
-          signalType: existing.signal_type || 'football',
-          signalsCount: existing.signals_count || 1,
-          bonusSignals: existing.bonus_signals || 0,
-          amount: existing.amount,
-          currency: existing.currency || 'KES',
-          planLabel: existing.plan || 'Signal Package',
+          signalType: updated.signal_type || 'football',
+          signalsCount: updated.signals_count || 1,
+          bonusSignals: updated.bonus_signals || 0,
+          amount: updated.amount,
+          currency: updated.currency || 'KES',
+          planLabel: updated.plan || 'Signal Package',
+          appUrl,
+          signalsLink: `${appUrl}/${updated.signal_type}`,
+          availableSignals: signals?.length || 0,
         }),
-      }).catch(e => console.error('Email send error:', e));
+      }).catch(e => console.error('Email error:', e));
     }
 
     return Response.json({
@@ -109,8 +123,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Verify error:', error);
     return Response.json(
-      { error: String(error) },
-      { status: 500 }
+      { error: String(error) }, { status: 500 }
     );
   }
 }

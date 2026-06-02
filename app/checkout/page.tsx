@@ -192,6 +192,8 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [currency] = useState(() => getCurrencyInfo());
+  const [signalsAvailable, setSignalsAvailable] = useState(true);
+  const [checkingSignals, setCheckingSignals] = useState(true);
 
   useEffect(() => {
     const stored = localStorage.getItem('selectedPlan');
@@ -207,6 +209,30 @@ export default function CheckoutPage() {
       setUser(user);
     });
   }, [router]);
+
+  useEffect(() => {
+    // Check if signals are available for this type
+    const checkAvailability = async () => {
+      if (!plan) return;
+      try {
+        const { data } = await supabase
+          .from('markets')
+          .select('id')
+          .eq('is_live', true)
+          .not('league_name', 'eq',
+            plan.type === 'football' ? 'AVIATOR' : 'FOOTBALL'
+          )
+          .limit(1);
+
+        setSignalsAvailable((data || []).length > 0);
+      } catch {
+        setSignalsAvailable(true); // allow if check fails
+      } finally {
+        setCheckingSignals(false);
+      }
+    };
+    if (plan) checkAvailability();
+  }, [plan]);
 
   const getDetails = () => {
     if (!plan) return null;
@@ -586,22 +612,65 @@ export default function CheckoutPage() {
           </div>
         )}
 
+        {/* No signals warning */}
+        {!checkingSignals && !signalsAvailable && (
+          <div style={{
+            background: 'rgba(239,68,68,0.1)',
+            border: '2px solid rgba(239,68,68,0.4)',
+            borderRadius: '14px', padding: '18px',
+            marginBottom: '16px'
+          }}>
+            <div style={{
+              display: 'flex', gap: '12px', alignItems: 'flex-start'
+            }}>
+              <span style={{ fontSize: '24px', flexShrink: 0 }}>⚠️</span>
+              <div>
+                <p style={{
+                  fontWeight: 900, fontSize: '15px',
+                  color: '#f87171', marginBottom: '6px'
+                }}>
+                  No Signals Available Right Now
+                </p>
+                <p style={{
+                  color: '#fca5a5', fontSize: '13px', lineHeight: 1.6,
+                  marginBottom: '10px'
+                }}>
+                  Our team has not dispatched{' '}
+                  {plan?.type === 'football' ? 'football' : 'aviator'}{' '}
+                  signals for today yet. Please wait until signals
+                  are available before purchasing to ensure you
+                  receive your service.
+                </p>
+                <Link href={`/${plan?.type}`} style={{
+                  display: 'inline-block',
+                  background: '#374151', color: 'white',
+                  padding: '8px 16px', borderRadius: '8px',
+                  fontSize: '12px', fontWeight: 700,
+                  textDecoration: 'none'
+                }}>
+                  ← Check Signal Availability
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* PAY BUTTON */}
         <button
           type="button"
           onClick={handlePay}
-          disabled={loading}
+          disabled={loading || !signalsAvailable}
           style={{
             width: '100%',
-            background: loading ? '#374151' : '#22c55e',
-            color: loading ? '#6b7280' : 'black',
+            background: loading || !signalsAvailable ? '#374151' : '#22c55e',
+            color: loading || !signalsAvailable ? '#6b7280' : 'black',
             border: 'none', borderRadius: '16px',
             padding: '20px', fontSize: '18px',
             fontWeight: 900,
-            cursor: loading ? 'not-allowed' : 'pointer',
+            cursor: loading || !signalsAvailable ? 'not-allowed' : 'pointer',
             touchAction: 'manipulation',
             display: 'block', marginBottom: '14px',
-            boxShadow: loading
+            boxShadow: loading || !signalsAvailable
               ? 'none'
               : '0 8px 25px rgba(34,197,94,0.35)',
             transition: 'all 0.2s'
@@ -609,6 +678,8 @@ export default function CheckoutPage() {
         >
           {loading
             ? '⏳ Redirecting...'
+            : !signalsAvailable
+            ? '⏳ Waiting for signals...'
             : `💳 Pay ${currency.s}${localAmount.toLocaleString()} via Paystack`
           }
         </button>

@@ -44,6 +44,8 @@ export default function FootballPage() {
   const [unlockedIds, setUnlockedIds] = useState<string[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [hasActivePurchase, setHasActivePurchase] = useState(false);
+  const [hasSignals, setHasSignals] = useState(false);
+  const [signalCount, setSignalCount] = useState(0);
 
   const loadData = async (showRefresh = false) => {
     if (showRefresh) setRefreshing(true);
@@ -60,6 +62,8 @@ const user = session?.user ?? null;
       .order('created_at', { ascending: false });
 
     setMarkets(marketData || []);
+    setHasSignals((marketData || []).length > 0);
+    setSignalCount((marketData || []).length);
 
     if (user) {
       const { data: purchases } = await supabase
@@ -195,48 +199,88 @@ const user = session?.user ?? null;
         maxWidth: '700px', margin: '0 auto', padding: '20px 16px'
       }}>
 
-        {/* Date Banner */}
-        <div style={{
-          background: '#0f1f33', border: '1px solid #1a2740',
-          borderRadius: '14px', padding: '14px 16px',
-          marginBottom: '20px',
-          display: 'flex', justifyContent: 'space-between',
-          alignItems: 'center', flexWrap: 'wrap', gap: '8px'
-        }}>
-          <div>
-            <p style={{
-              color: '#6b7280', fontSize: '11px', fontWeight: 700,
-              textTransform: 'uppercase', letterSpacing: '0.08em',
-              marginBottom: '3px'
-            }}>
-              Today's Signals
-            </p>
-            <p style={{ fontWeight: 900, fontSize: '15px' }}>
-              📅 {today}
-            </p>
+        {/* Availability Banner */}
+        {!loading && (
+          <div style={{
+            background: markets.length > 0
+              ? 'rgba(34,197,94,0.06)'
+              : 'rgba(239,68,68,0.06)',
+            border: markets.length > 0
+              ? '1px solid rgba(34,197,94,0.2)'
+              : '2px solid rgba(239,68,68,0.3)',
+            borderRadius: '14px', padding: '16px',
+            marginBottom: '20px'
+          }}>
+            {markets.length > 0 ? (
+              <div style={{
+                display: 'flex', alignItems: 'center',
+                justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px'
+              }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '12px'
+                }}>
+                  <div style={{
+                    width: '42px', height: '42px',
+                    background: 'rgba(34,197,94,0.15)',
+                    borderRadius: '12px',
+                    display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', fontSize: '22px'
+                  }}>
+                    ✅
+                  </div>
+                  <div>
+                    <p style={{
+                      fontWeight: 900, fontSize: '15px',
+                      color: '#22c55e', marginBottom: '2px'
+                    }}>
+                      {markets.length} Signal{markets.length > 1 ? 's' : ''} Available Today!
+                    </p>
+                    <p style={{ color: '#6b7280', fontSize: '12px' }}>
+                      Expert picks are ready — pay to unlock instantly
+                    </p>
+                  </div>
+                </div>
+                <Link href="/pricing" style={{
+                  background: '#22c55e', color: 'black',
+                  padding: '10px 18px', borderRadius: '10px',
+                  fontSize: '13px', fontWeight: 900,
+                  textDecoration: 'none', flexShrink: 0
+                }}>
+                  Buy Signals
+                </Link>
+              </div>
+            ) : (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '12px'
+              }}>
+                <div style={{
+                  width: '42px', height: '42px',
+                  background: 'rgba(239,68,68,0.1)',
+                  borderRadius: '12px',
+                  display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', fontSize: '22px', flexShrink: 0
+                }}>
+                  ⏳
+                </div>
+                <div>
+                  <p style={{
+                    fontWeight: 900, fontSize: '15px',
+                    color: '#f87171', marginBottom: '2px'
+                  }}>
+                    No Signals Available Yet Today
+                  </p>
+                  <p style={{ color: '#6b7280', fontSize: '13px' }}>
+                    Our analysts are reviewing today's matches.
+                    Signals will appear here when ready.
+                    <strong style={{ color: '#fbbf24' }}>
+                      {' '}Do not purchase until signals are showing.
+                    </strong>
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
-          {markets.length > 0 && (
-            <div style={{
-              background: 'rgba(34,197,94,0.1)',
-              border: '1px solid rgba(34,197,94,0.2)',
-              borderRadius: '10px', padding: '8px 14px',
-              textAlign: 'center'
-            }}>
-              <p style={{
-                color: '#22c55e', fontWeight: 900,
-                fontSize: '20px', fontFamily: 'monospace'
-              }}>
-                {markets.length}
-              </p>
-              <p style={{
-                color: '#6b7280', fontSize: '10px',
-                textTransform: 'uppercase'
-              }}>
-                {markets.length === 1 ? 'Signal' : 'Signals'}
-              </p>
-            </div>
-          )}
-        </div>
+        )}
 
         {/* Floating Cart Button (After Date Banner) */}
         {cartCount > 0 && (
