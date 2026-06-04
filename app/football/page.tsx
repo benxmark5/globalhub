@@ -55,13 +55,12 @@ const user = session?.user ?? null;
 
     // Only load admin-pushed markets
     const { data: marketData } = await supabase
-      .from('markets')
-      .select('*')
-      .eq('is_live', true)
-      .not('league_name', 'eq', 'AVIATOR')
-      .or('expires_at.is.null', `expires_at.gt.${new Date().toISOString()}`)
-      .order('created_at', { ascending: false });
-
+  .from('markets')
+  .select('*')
+  .eq('is_live', true)
+  .not('league_name', 'eq', 'AVIATOR')
+  .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`) // <-- Fixed!
+  .order('created_at', { ascending: false });
     setMarkets(marketData || []);
     setHasSignals((marketData || []).length > 0);
     setSignalCount((marketData || []).length);
