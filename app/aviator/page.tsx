@@ -16,8 +16,52 @@ type Signal = {
   signal_notes: string;
   price: number;
   created_at: string;
+  expires_at: string; // Added to handle expiration tracking
   is_live: boolean;
 };
+
+// Expiry Timer Component for live signal cards
+function ExpiryTimer({ expiresAt }: { expiresAt: string }) {
+  const [timeLeft, setTimeLeft] = useState('');
+
+  useEffect(() => {
+    if (!expiresAt) {
+      setTimeLeft('No Limit');
+      return;
+    }
+    const calc = () => {
+      const diff = new Date(expiresAt).getTime() - Date.now();
+      if (diff <= 0) { setTimeLeft('Expired'); return; }
+      const mins = Math.floor(diff / 60000);
+      const secs = Math.floor((diff % 60000) / 1000);
+      setTimeLeft(`${mins}m ${secs}s`);
+    };
+    calc();
+    const i = setInterval(calc, 1000);
+    return () => clearInterval(i);
+  }, [expiresAt]);
+
+  if (!expiresAt) return null;
+
+  const isUrgent =
+    new Date(expiresAt).getTime() - Date.now() < 5 * 60000;
+
+  return (
+    <span style={{
+      color: isUrgent ? '#f87171' : '#fbbf24',
+      fontSize: '12px', fontWeight: 900,
+      fontFamily: 'monospace',
+      background: isUrgent
+        ? 'rgba(239,68,68,0.1)' : 'rgba(251,191,36,0.1)',
+      border: isUrgent
+        ? '1px solid rgba(239,68,68,0.2)'
+        : '1px solid rgba(251,191,36,0.2)',
+      padding: '3px 8px', borderRadius: '6px'
+    }}>
+      ⏱ {timeLeft}
+    </span>
+  );
+}
 
 export default function AviatorPublicPage() {
   const { addItem, isInCart, count: cartCount } = useCart();
@@ -32,7 +76,7 @@ export default function AviatorPublicPage() {
   useEffect(() => {
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-const user = session?.user ?? null;
+      const user = session?.user ?? null;
       setUser(user);
 
       // Get only admin-dispatched aviator signals
@@ -41,6 +85,7 @@ const user = session?.user ?? null;
         .select('*')
         .eq('is_live', true)
         .eq('league_name', 'AVIATOR')
+        .or('expires_at.is.null', `expires_at.gt.${new Date().toISOString()}`)
         .order('created_at', { ascending: false });
 
       setSignals(data || []);
@@ -231,13 +276,18 @@ const user = session?.user ?? null;
                     alignItems: 'center',
                     borderBottom: '1px solid #1a2740'
                   }}>
-                    <span style={{
-                      fontSize: '11px', fontWeight: 900,
-                      textTransform: 'uppercase',
-                      color: risk.color, letterSpacing: '0.05em'
-                    }}>
-                      {risk.label}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{
+                        fontSize: '11px', fontWeight: 900,
+                        textTransform: 'uppercase',
+                        color: risk.color, letterSpacing: '0.05em'
+                      }}>
+                        {risk.label}
+                      </span>
+                      {/* Integrated Expiry Countdown Timer for each card */}
+                      <ExpiryTimer expiresAt={signal.expires_at} />
+                    </div>
+                    
                     {unlocked ? (
                       <span style={{
                         background: 'rgba(34,197,94,0.15)',

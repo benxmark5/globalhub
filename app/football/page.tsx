@@ -59,6 +59,7 @@ const user = session?.user ?? null;
       .select('*')
       .eq('is_live', true)
       .not('league_name', 'eq', 'AVIATOR')
+      .or('expires_at.is.null', `expires_at.gt.${new Date().toISOString()}`)
       .order('created_at', { ascending: false });
 
     setMarkets(marketData || []);
