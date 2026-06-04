@@ -81,12 +81,12 @@ export default function AviatorPublicPage() {
 
       // Get only admin-dispatched aviator signals
       const { data } = await supabase
-        .from('markets')
-        .select('*')
-        .eq('is_live', true)
-        .eq('league_name', 'AVIATOR')
-        .or('expires_at.is.null', `expires_at.gt.${new Date().toISOString()}`)
-        .order('created_at', { ascending: false });
+  .from('markets')
+  .select('*')
+  .eq('is_live', true)
+  .eq('league_name', 'AVIATOR')
+  .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+  .order('created_at', { ascending: false });
 
       setSignals(data || []);
 
