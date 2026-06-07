@@ -3,6 +3,7 @@ import "./globals.css";
 import { CartProvider } from "./lib/cart";
 import ChatWidget from "./components/ChatWidget";
 import GlobalNav from "./components/GlobalNav";
+import VisitorTracker from "./components/VisitorTracker";
 
 export const metadata: Metadata = {
   title: "GlobalHub — Sports Signals",
@@ -17,6 +18,7 @@ export default function RootLayout({
       <body>
         <CartProvider>
           <GlobalNav />
+          <VisitorTracker />
           {children}
           <ChatWidget />
         </CartProvider>

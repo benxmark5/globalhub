@@ -1,18 +1,13 @@
 "use client";
 import { useState, useEffect, useRef } from 'react';
-import { createClient } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { supabase } from '../lib/supabase';
 import {
   Trophy, TrendingUp, Zap, LogOut,
   User, Clock, CheckCircle, ShoppingBag,
   Camera, Sun, Moon, X, AlertTriangle
 } from 'lucide-react';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 type Purchase = {
   id: string;
@@ -54,7 +49,7 @@ export default function AccountPage() {
 
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-const user = session?.user ?? null;
+      const user = session?.user ?? null;
       if (!user) { router.push('/login'); return; }
       setUser(user);
       setAvatarUrl(user.user_metadata?.avatar_url || null);

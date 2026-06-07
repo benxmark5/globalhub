@@ -1,8 +1,10 @@
 "use client";
+
 import { 
   createContext, useContext, 
-  useState, useEffect, ReactNode 
+  useState, ReactNode 
 } from 'react';
+import { supabase } from '../lib/supabase';
 
 type CartItem = {
   id: string;

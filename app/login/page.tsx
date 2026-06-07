@@ -1,4 +1,5 @@
 "use client";
+
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -11,24 +12,31 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false); // Track Google loading state
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // 1. Regular Email/Password Login
+  const isFormDisabled = loading || googleLoading;
+
   const handleLogin = async () => {
     if (!email || !password) {
       setError('Please fill in all fields');
       return;
     }
+    
     setLoading(true);
     setError('');
+    
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { error: authError } = await supabase.auth.signInWithPassword({
         email: email.trim().toLowerCase(),
         password
       });
-      if (error) throw error;
-      router.push('/account');
+      
+      if (authError) throw authError;
+      
+      const destination = localStorage.getItem('redirectAfterLogin') || '/account';
+      localStorage.removeItem('redirectAfterLogin');
+      router.push(destination);
     } catch (e: unknown) {
       if (e instanceof Error) {
         if (e.message.includes('fetch')) {
@@ -44,18 +52,20 @@ export default function LoginPage() {
     }
   };
 
-  // 2. Google OAuth Login
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
     setError('');
+    
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
+      const destination = localStorage.getItem('redirectAfterLogin') || '/account';
+      const { error: authError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/account`, // Dynamically redirects back to your account page
+          redirectTo: `${window.location.origin}${destination}`,
         },
       });
-      if (error) throw error;
+      
+      if (authError) throw authError;
     } catch (e: unknown) {
       if (e instanceof Error) {
         setError(e.message);
@@ -87,16 +97,11 @@ export default function LoginPage() {
             }}>
               <Trophy size={22} color="black" />
             </div>
-            <span style={{
-              fontWeight: 900, fontSize: '24px', color: 'white'
-            }}>
+            <span style={{ fontWeight: 900, fontSize: '24px', color: 'white' }}>
               GLOBAL<span style={{ color: '#22c55e' }}>HUB</span>
             </span>
           </Link>
-          <h1 style={{
-            fontWeight: 900, fontSize: '28px',
-            marginBottom: '8px', color: 'white'
-          }}>
+          <h1 style={{ fontWeight: 900, fontSize: '28px', marginBottom: '8px', color: 'white' }}>
             Welcome Back
           </h1>
           <p style={{ color: '#6b7280', fontSize: '15px' }}>
@@ -108,10 +113,11 @@ export default function LoginPage() {
           background: '#0f1f33', border: '1px solid #1a2740',
           borderRadius: '20px', padding: '28px 20px'
         }}>
+          
           <div style={{ marginBottom: '16px' }}>
             <label style={{
               display: 'block', color: '#9ca3af', fontSize: '12px',
-              fontWeight: 700, textTransform: 'uppercase' as const,
+              fontWeight: 700, textTransform: 'uppercase',
               letterSpacing: '0.08em', marginBottom: '8px'
             }}>
               Email Address
@@ -124,13 +130,13 @@ export default function LoginPage() {
               autoCapitalize="none"
               autoCorrect="off"
               autoComplete="email"
-              disabled={loading || googleLoading}
+              disabled={isFormDisabled}
               style={{
                 width: '100%', background: '#0a1628',
                 border: '2px solid #1a2740', borderRadius: '12px',
                 padding: '16px', color: 'white', fontSize: '16px',
-                outline: 'none', boxSizing: 'border-box' as const,
-                display: 'block', opacity: (loading || googleLoading) ? 0.6 : 1
+                outline: 'none', boxSizing: 'border-box',
+                display: 'block', opacity: isFormDisabled ? 0.6 : 1
               }}
             />
           </div>
@@ -138,7 +144,7 @@ export default function LoginPage() {
           <div style={{ marginBottom: '24px' }}>
             <label style={{
               display: 'block', color: '#9ca3af', fontSize: '12px',
-              fontWeight: 700, textTransform: 'uppercase' as const,
+              fontWeight: 700, textTransform: 'uppercase',
               letterSpacing: '0.08em', marginBottom: '8px'
             }}>
               Password
@@ -150,14 +156,14 @@ export default function LoginPage() {
                 onChange={e => setPassword(e.target.value)}
                 placeholder="Enter password"
                 autoComplete="current-password"
-                disabled={loading || googleLoading}
+                disabled={isFormDisabled}
                 style={{
                   width: '100%', background: '#0a1628',
                   border: '2px solid #1a2740', borderRadius: '12px',
                   padding: '16px 52px 16px 16px',
                   color: 'white', fontSize: '16px',
-                  outline: 'none', boxSizing: 'border-box' as const,
-                  display: 'block', opacity: (loading || googleLoading) ? 0.6 : 1
+                  outline: 'none', boxSizing: 'border-box',
+                  display: 'block', opacity: isFormDisabled ? 0.6 : 1
                 }}
               />
               <button
@@ -184,27 +190,23 @@ export default function LoginPage() {
               borderRadius: '12px', padding: '14px',
               marginBottom: '16px'
             }}>
-              <p style={{
-                color: '#f87171', fontSize: '14px',
-                textAlign: 'center'
-              }}>
+              <p style={{ color: '#f87171', fontSize: '14px', textAlign: 'center' }}>
                 ⚠️ {error}
               </p>
             </div>
           )}
 
-          {/* Email Submit Button */}
           <button
             type="button"
             onClick={handleLogin}
-            disabled={loading || googleLoading}
+            disabled={isFormDisabled}
             style={{
               width: '100%',
               background: loading ? '#374151' : '#22c55e',
               color: loading ? '#6b7280' : 'black',
               border: 'none', borderRadius: '14px',
               padding: '18px', fontSize: '17px', fontWeight: 900,
-              cursor: (loading || googleLoading) ? 'not-allowed' : 'pointer',
+              cursor: isFormDisabled ? 'not-allowed' : 'pointer',
               touchAction: 'manipulation',
               display: 'block', marginBottom: '16px',
               position: 'relative', zIndex: 1
@@ -213,11 +215,10 @@ export default function LoginPage() {
             {loading ? '⏳ Logging in...' : '🔐 Login'}
           </button>
 
-          {/* --- GOOGLE OAUTH LOGIN BUTTON --- */}
           <button
             type="button"
             onClick={handleGoogleLogin}
-            disabled={loading || googleLoading}
+            disabled={isFormDisabled}
             style={{
               width: '100%', background: 'white',
               border: '2px solid #e2e8f0',
@@ -228,7 +229,7 @@ export default function LoginPage() {
               color: '#1a202c', cursor: 'pointer',
               marginBottom: '16px',
               touchAction: 'manipulation',
-              opacity: (loading || googleLoading) ? 0.6 : 1
+              opacity: isFormDisabled ? 0.6 : 1
             }}
           >
             <svg width="20" height="20" viewBox="0 0 24 24">
@@ -240,10 +241,7 @@ export default function LoginPage() {
             {googleLoading ? 'Connecting to Google...' : 'Continue with Google'}
           </button>
 
-          <div style={{
-            display: 'flex', alignItems: 'center',
-            gap: '12px', marginBottom: '16px'
-          }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
             <div style={{ flex: 1, height: '1px', background: '#1a2740' }} />
             <span style={{ color: '#374151', fontSize: '12px' }}>OR</span>
             <div style={{ flex: 1, height: '1px', background: '#1a2740' }} />
@@ -261,9 +259,7 @@ export default function LoginPage() {
         </div>
 
         <p style={{ textAlign: 'center', marginTop: '20px' }}>
-          <Link href="/" style={{
-            color: '#374151', fontSize: '13px', textDecoration: 'none'
-          }}>
+          <Link href="/" style={{ color: '#374151', fontSize: '13px', textDecoration: 'none' }}>
             ← Back to home
           </Link>
         </p>

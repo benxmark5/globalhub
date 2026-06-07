@@ -65,6 +65,18 @@ export async function POST(request: NextRequest) {
       .select()
       .single();
 
+    // 🌟 ADDED: Log payment to activity feed
+    if (updated) {
+      await supabase.from('activity_feed').insert({
+        type: 'payment',
+        title: `💰 Payment Received`,
+        description: `${updated.signal_type === 'football' ? '⚽' : '✈️'} ${updated.plan} — ${updated.currency} ${updated.amount?.toLocaleString()}`,
+        country: 'Unknown',
+        country_flag: '💳',
+        metadata: { reference, amount: updated.amount, currency: updated.currency }
+      });
+    }
+
     // Get user email from Paystack response
     const userEmail = data.data?.customer?.email ||
       existing?.email || '';
