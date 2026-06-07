@@ -1,14 +1,16 @@
+// app/checkout/page.tsx
 "use client";
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Trophy, ArrowLeft, CheckCircle, Lock } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import {
+  Trophy, ArrowLeft, CheckCircle,
+  ShieldCheck, Zap, Lock, Globe, RefreshCw
+} from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { useCurrency } from '../lib/useCurrency';
+import CurrencySelector from '../components/CurrencySelector';
+import { toLocalAmount, formatAmount } from '../lib/currency';
 
 const footballPlans = [
   { games: 1,   price: 1.20,  label: '1 Game',    bonus: 0 },
@@ -32,36 +34,28 @@ const aviatorPlans = [
   { tier: 'VVIP',   signals: 12, price: 25 },
 ];
 
-// ── Currency type ─────────────────────────────
-type CurrencyInfo = {
-  c: string; r: number; s: string;
-  name: string; flag: string;
-};
-
-const FALLBACK_CURRENCY: CurrencyInfo = {
-  c: 'USD', r: 1, s: '$', name: 'US Dollar', flag: '🌍'
-};
-
 export default function CheckoutPage() {
   const router = useRouter();
+  const { currency, setCurrency, loading: currencyLoading } = useCurrency();
+
   const [plan, setPlan] = useState<{
     type: string; index: number; price: number;
     isCart?: boolean;
-    cartItems?: { id: string; type: string; name: string; price: number; league?: string }[];
+    cartItems?: { id: string; type: string; name: string; price: number }[];
     cartLabel?: string; signalsCount?: number;
   } | null>(null);
+
   const [user, setUser] = useState<{
     id: string; email?: string;
     user_metadata?: { full_name?: string };
   } | null>(null);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [currency, setCurrency] = useState<CurrencyInfo>(FALLBACK_CURRENCY);
-  const [currencyLoading, setCurrencyLoading] = useState(true);
   const [signalsAvailable, setSignalsAvailable] = useState(true);
   const [checkingSignals, setCheckingSignals] = useState(true);
 
-  // ── Load plan & user ──────────────────────────
+  // ── Init ────────────────────────────────────
   useEffect(() => {
     const stored = localStorage.getItem('selectedPlan');
     if (!stored) { router.push('/pricing'); return; }
@@ -77,58 +71,9 @@ export default function CheckoutPage() {
     });
   }, [router]);
 
-  // ── Load currency via IP detection ───────────
+  // ── Signal availability ─────────────────────
   useEffect(() => {
-    const loadCurrency = async () => {
-      try {
-        // Check localStorage cache first (set by VisitorTracker)
-        const cached = localStorage.getItem('gh_currency');
-        if (cached) {
-          const data = JSON.parse(cached);
-          setCurrency({
-            c: data.currency || 'USD',
-            r: data.rate || 1,
-            s: data.symbol || '$',
-            name: data.name || 'US Dollar',
-            flag: data.flag || '🌍',
-          });
-          setCurrencyLoading(false);
-          return;
-        }
-
-        // Fetch from IP detection API
-        const res = await fetch('/api/detect-location');
-        if (res.ok) {
-          const data = await res.json();
-          const curr: CurrencyInfo = {
-            c: data.currency || 'USD',
-            r: data.rate || 1,
-            s: data.symbol || '$',
-            name: data.name || 'US Dollar',
-            flag: data.flag || '🌍',
-          };
-          setCurrency(curr);
-          // Cache for next time
-          localStorage.setItem('gh_currency', JSON.stringify({
-            currency: curr.c,
-            symbol: curr.s,
-            rate: curr.r,
-            name: curr.name,
-            flag: curr.flag,
-          }));
-        }
-      } catch {
-        // Keep fallback USD
-      } finally {
-        setCurrencyLoading(false);
-      }
-    };
-    loadCurrency();
-  }, []);
-
-  // ── Check signal availability ─────────────────
-  useEffect(() => {
-    const checkAvailability = async () => {
+    const check = async () => {
       if (!plan) return;
       try {
         const { data } = await supabase
@@ -139,16 +84,13 @@ export default function CheckoutPage() {
           .gt('expires_at', new Date().toISOString())
           .limit(1);
         setSignalsAvailable((data || []).length > 0);
-      } catch {
-        setSignalsAvailable(true);
-      } finally {
-        setCheckingSignals(false);
-      }
+      } catch { setSignalsAvailable(true); }
+      finally { setCheckingSignals(false); }
     };
-    if (plan) checkAvailability();
+    if (plan) check();
   }, [plan]);
 
-  // ── Helpers ───────────────────────────────────
+  // ── Derived values ──────────────────────────
   const getDetails = () => {
     if (!plan || plan.isCart) return null;
     if (plan.type === 'football') return footballPlans[plan.index] || footballPlans[0];
@@ -159,21 +101,24 @@ export default function CheckoutPage() {
   const details = getDetails();
   const isCart = plan?.isCart === true;
   const usdPrice = isCart ? (plan?.price || 0) : (details?.price || 0);
-  const localAmount = currencyLoading ? 0 : Math.ceil(usdPrice * currency.r);
-
+  const localAmount = toLocalAmount(usdPrice, currency);
+  const displayAmount = formatAmount(localAmount, currency);
+  const bonus = !isCart && details && 'bonus' in details ? details.bonus : 0;
   const signalCount = isCart
     ? (plan?.signalsCount || 0)
     : details
     ? ('signals' in details ? details.signals : 'games' in details ? details.games : 1)
     : 1;
 
-  const bonus = !isCart && details && 'bonus' in details ? details.bonus : 0;
+  const isAviator = plan?.type === 'aviator';
+  const canPay = !loading && signalsAvailable && !currencyLoading;
 
-  // ── Pay ───────────────────────────────────────
+  // ── Payment ─────────────────────────────────
   const handlePay = async () => {
     if (!user || !plan) return;
     setLoading(true);
     setError('');
+
     try {
       let sCount = plan.signalsCount || 1;
       let bonusCount = 0;
@@ -193,35 +138,42 @@ export default function CheckoutPage() {
         body: JSON.stringify({
           email: user.email,
           amount: localAmount,
-          currency: currency.c,
+          currency: currency.code,
           userId: user.id,
           planType: plan.type,
           signalsCount: sCount,
           bonusSignals: bonusCount,
           planLabel: label,
-          visitorCountry: localStorage.getItem('gh_location')
-            ? JSON.parse(localStorage.getItem('gh_location')!).country
-            : 'Unknown',
-          visitorCurrency: currency.c,
+          visitorCountry: currency.country,
+          visitorCurrency: currency.code,
         }),
       });
 
       const data = await res.json();
+
       if (data.success && data.authorizationUrl) {
+        // Save currency used to DB
+        try {
+          await supabase.from('purchases')
+            .update({
+              visitor_country: currency.country,
+              visitor_currency: currency.code,
+            })
+            .eq('reference', data.reference);
+        } catch { /* non-critical */ }
+
         localStorage.removeItem('selectedPlan');
         window.location.href = data.authorizationUrl;
       } else {
-        setError(data.error || 'Payment initialization failed. Try again.');
+        setError(data.error || 'Payment failed. Please try again.');
       }
     } catch (e) {
-      setError('Something went wrong. Please try again.');
-      console.error(e);
+      setError('Connection error. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  // ── Loading state ─────────────────────────────
   if (!plan) {
     return (
       <div style={{
@@ -233,25 +185,24 @@ export default function CheckoutPage() {
     );
   }
 
-  const canPay = !loading && signalsAvailable && !currencyLoading;
-
-  // ── Render ─────────────────────────────────────
+  // ── Render ───────────────────────────────────
   return (
     <div style={{
-      minHeight: '100dvh', background: '#0a1628',
+      minHeight: '100dvh', background: '#060f1e',
       fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
       color: 'white'
     }}>
 
-      {/* Header */}
+      {/* ── Top bar ── */}
       <div style={{
-        background: '#0f1f33',
+        background: '#0a1628',
         borderBottom: '1px solid #1a2740',
-        padding: '14px 16px'
+        padding: '12px 16px'
       }}>
         <div style={{
-          maxWidth: '500px', margin: '0 auto',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+          maxWidth: '520px', margin: '0 auto',
+          display: 'flex', alignItems: 'center',
+          justifyContent: 'space-between'
         }}>
           <button type="button" onClick={() => router.back()} style={{
             background: 'none', border: 'none', color: '#9ca3af',
@@ -259,256 +210,315 @@ export default function CheckoutPage() {
             gap: '6px', fontSize: '13px', fontWeight: 700,
             touchAction: 'manipulation'
           }}>
-            <ArrowLeft size={16} /> Back
+            <ArrowLeft size={15} /> Back
           </button>
-          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
+
+          <Link href="/" style={{
+            display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none'
+          }}>
             <div style={{
-              width: '30px', height: '30px', background: '#22c55e',
-              borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center'
+              width: '28px', height: '28px', background: '#22c55e',
+              borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center'
             }}>
-              <Trophy size={14} color="black" />
+              <Trophy size={13} color="black" />
             </div>
-            <span style={{ fontWeight: 900, fontSize: '16px' }}>
+            <span style={{ fontWeight: 900, fontSize: '15px', color: 'white' }}>
               GLOBAL<span style={{ color: '#22c55e' }}>HUB</span>
             </span>
           </Link>
-          <div style={{ width: '60px' }} />
+
+          {/* Currency selector */}
+          <CurrencySelector
+            current={currency}
+            onChange={setCurrency}
+            compact
+          />
         </div>
       </div>
 
-      <div style={{ maxWidth: '500px', margin: '0 auto', padding: '28px 16px' }}>
-
-        {/* Order Summary */}
+      {/* ── Trust bar ── */}
+      <div style={{
+        background: 'rgba(34,197,94,0.04)',
+        borderBottom: '1px solid rgba(34,197,94,0.1)',
+        padding: '8px 16px'
+      }}>
         <div style={{
-          background: '#0f1f33', border: '1px solid #1a2740',
-          borderRadius: '18px', padding: '22px', marginBottom: '16px'
+          maxWidth: '520px', margin: '0 auto',
+          display: 'flex', alignItems: 'center',
+          justifyContent: 'center', gap: '20px',
+          flexWrap: 'wrap'
         }}>
-          <p style={{
-            color: '#6b7280', fontSize: '11px', fontWeight: 700,
-            textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '16px'
-          }}>
-            Order Summary
-          </p>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
-            <div>
-              {isCart ? (
-                <>
-                  <p style={{ fontWeight: 900, fontSize: '18px', marginBottom: '4px' }}>
-                    🛒 {signalCount} Signals Bundle
-                  </p>
-                  <p style={{ color: '#22c55e', fontSize: '13px', fontWeight: 700 }}>
-                    {plan.cartLabel}
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p style={{ fontWeight: 900, fontSize: '18px', marginBottom: '4px' }}>
-                    {plan.type === 'football' ? '⚽' : '✈️'}{' '}
-                    {plan.type === 'football'
-                      ? `${signalCount} Football Game${signalCount > 1 ? 's' : ''}`
-                      : `${signalCount} Aviator Signal${signalCount > 1 ? 's' : ''}`
-                    }
-                  </p>
-                  {bonus > 0 && (
-                    <p style={{ color: '#fbbf24', fontSize: '13px', fontWeight: 700 }}>
-                      🎁 +{bonus} FREE bonus signals!
-                    </p>
-                  )}
-                </>
-              )}
-            </div>
-
-            {/* Price block */}
-            <div style={{ textAlign: 'right' }}>
-              {currencyLoading ? (
-                <p style={{ color: '#6b7280', fontSize: '14px', fontFamily: 'monospace' }}>
-                  Detecting currency...
-                </p>
-              ) : (
-                <>
-                  <p style={{
-                    fontWeight: 900, fontSize: '26px',
-                    fontFamily: 'monospace', color: '#22c55e', lineHeight: 1
-                  }}>
-                    {currency.flag} {currency.s}{localAmount.toLocaleString()}
-                  </p>
-                  <p style={{ color: '#6b7280', fontSize: '11px', marginTop: '4px' }}>
-                    ≈ ${usdPrice.toFixed(2)} USD
-                  </p>
-                  <p style={{ color: '#374151', fontSize: '11px', marginTop: '2px' }}>
-                    {currency.name}
-                  </p>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Benefits */}
-          <div style={{
-            borderTop: '1px solid #1a2740', paddingTop: '12px',
-            display: 'flex', flexWrap: 'wrap', gap: '12px'
-          }}>
-            {[
-              { icon: '✅', text: 'Unlocks instantly' },
-              { icon: '⏰', text: plan.type === 'aviator' ? 'Valid 20 mins' : 'Valid 24 hours' },
-              { icon: '🔒', text: 'Secure payment' },
-            ].map(item => (
-              <span key={item.text} style={{
-                color: '#6b7280', fontSize: '12px',
-                display: 'flex', alignItems: 'center', gap: '5px'
-              }}>
-                {item.icon} {item.text}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        {/* Account Info */}
-        <div style={{
-          background: '#0f1f33', border: '1px solid #1a2740',
-          borderRadius: '14px', padding: '16px', marginBottom: '16px'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <p style={{
-                color: '#6b7280', fontSize: '11px', fontWeight: 700,
-                textTransform: 'uppercase', marginBottom: '4px'
-              }}>
-                Paying As
-              </p>
-              <p style={{ fontWeight: 700, fontSize: '14px' }}>{user?.email}</p>
-            </div>
-            <div style={{
-              width: '36px', height: '36px',
-              background: 'rgba(34,197,94,0.1)', borderRadius: '50%',
-              display: 'flex', alignItems: 'center', justifyContent: 'center'
+          {[
+            { icon: ShieldCheck, label: 'Secure Checkout', color: '#22c55e' },
+            { icon: Lock, label: 'SSL Encrypted', color: '#60a5fa' },
+            { icon: Zap, label: 'Instant Delivery', color: '#fbbf24' },
+          ].map(({ icon: Icon, label, color }) => (
+            <div key={label} style={{
+              display: 'flex', alignItems: 'center', gap: '5px'
             }}>
-              <CheckCircle size={18} color="#22c55e" />
-            </div>
-          </div>
-        </div>
-
-        {/* Currency Info Box */}
-        {!currencyLoading && (
-          <div style={{
-            background: 'rgba(34,197,94,0.05)',
-            border: '1px solid rgba(34,197,94,0.15)',
-            borderRadius: '14px', padding: '14px 16px', marginBottom: '16px'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <p style={{ color: '#86efac', fontSize: '13px', fontWeight: 700 }}>
-                {currency.flag} Your Local Currency Detected
-              </p>
-              <span style={{
-                background: 'rgba(34,197,94,0.1)', color: '#22c55e',
-                fontSize: '11px', fontWeight: 700,
-                padding: '3px 8px', borderRadius: '20px'
-              }}>
-                {currency.c}
+              <Icon size={13} color={color} />
+              <span style={{ color: '#6b7280', fontSize: '11px', fontWeight: 600 }}>
+                {label}
               </span>
             </div>
-            <p style={{ color: '#6b7280', fontSize: '13px', lineHeight: 1.6 }}>
-              Charged in <strong style={{ color: '#9ca3af' }}>{currency.name} ({currency.c})</strong>
-              {' '}· Base price{' '}
-              <strong style={{ color: '#9ca3af' }}>${usdPrice.toFixed(2)} USD</strong>
-            </p>
-          </div>
-        )}
+          ))}
+        </div>
+      </div>
 
-        {/* Payment method */}
-        <div style={{
-          background: '#0f1f33', border: '1px solid #1a2740',
-          borderRadius: '14px', padding: '16px', marginBottom: '20px'
+      <div style={{ maxWidth: '520px', margin: '0 auto', padding: '24px 16px 40px' }}>
+
+        {/* ── Page title ── */}
+        <h1 style={{
+          fontWeight: 900, fontSize: '20px', marginBottom: '20px',
+          letterSpacing: '-0.5px'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-            <span style={{ fontSize: '20px' }}>💳</span>
-            <p style={{ fontWeight: 700, fontSize: '14px' }}>Pay with Paystack</p>
+          Complete Your Purchase
+        </h1>
+
+        {/* ── Order card ── */}
+        <div style={{
+          background: '#0a1628',
+          border: '1px solid #1a2740',
+          borderRadius: '16px', overflow: 'hidden',
+          marginBottom: '14px'
+        }}>
+          {/* Header */}
+          <div style={{
+            background: '#0f1f33',
+            padding: '14px 18px',
+            display: 'flex', alignItems: 'center',
+            justifyContent: 'space-between',
+            borderBottom: '1px solid #1a2740'
+          }}>
+            <p style={{
+              color: '#6b7280', fontSize: '11px', fontWeight: 700,
+              textTransform: 'uppercase', letterSpacing: '0.08em'
+            }}>
+              Order Summary
+            </p>
+            <span style={{
+              background: isAviator ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)',
+              color: isAviator ? '#f87171' : '#22c55e',
+              fontSize: '10px', fontWeight: 700,
+              padding: '3px 8px', borderRadius: '20px',
+              textTransform: 'uppercase'
+            }}>
+              {isAviator ? '✈️ Aviator' : '⚽ Football'}
+            </span>
           </div>
-          <p style={{ color: '#6b7280', fontSize: '13px', lineHeight: 1.6 }}>
-            Secured redirect to Paystack. Pay with card, M-Pesa, or mobile money.
-            No Paystack account required.
-          </p>
+
+          {/* Body */}
+          <div style={{ padding: '18px' }}>
+            {/* Product description */}
+            <div style={{
+              display: 'flex', justifyContent: 'space-between',
+              alignItems: 'flex-start', marginBottom: '16px'
+            }}>
+              <div>
+                {isCart ? (
+                  <>
+                    <p style={{ fontWeight: 900, fontSize: '17px', marginBottom: '3px' }}>
+                      🛒 {signalCount} Signals Bundle
+                    </p>
+                    <p style={{ color: '#22c55e', fontSize: '13px', fontWeight: 700 }}>
+                      {plan.cartLabel}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p style={{ fontWeight: 900, fontSize: '17px', marginBottom: '3px' }}>
+                      {isAviator
+                        ? `${signalCount} Aviator Signal${signalCount > 1 ? 's' : ''}`
+                        : `${signalCount} Football Game${signalCount > 1 ? 's' : ''}`
+                      }
+                    </p>
+                    {bonus > 0 && (
+                      <p style={{ color: '#fbbf24', fontSize: '12px', fontWeight: 700 }}>
+                        🎁 +{bonus} free bonus signals!
+                      </p>
+                    )}
+                    <p style={{ color: '#6b7280', fontSize: '12px', marginTop: '2px' }}>
+                      {isAviator ? 'Active for 20 minutes' : 'Valid for 24 hours'}
+                    </p>
+                  </>
+                )}
+              </div>
+
+              {/* Price in local currency */}
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                {currencyLoading ? (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: '6px', color: '#6b7280'
+                  }}>
+                    <RefreshCw size={14} className="animate-spin" />
+                    <span style={{ fontSize: '13px' }}>Detecting...</span>
+                  </div>
+                ) : (
+                  <>
+                    <p style={{
+                      fontWeight: 900, fontSize: '24px',
+                      fontFamily: 'monospace', color: '#22c55e',
+                      lineHeight: 1
+                    }}>
+                      {displayAmount}
+                    </p>
+                    <p style={{ color: '#6b7280', fontSize: '11px', marginTop: '4px' }}>
+                      = ${usdPrice.toFixed(2)} USD
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Currency info row */}
+            <div style={{
+              background: '#060f1e',
+              border: '1px solid #1a2740',
+              borderRadius: '10px', padding: '10px 14px',
+              display: 'flex', alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Globe size={14} color="#22c55e" />
+                <span style={{ color: '#9ca3af', fontSize: '12px' }}>
+                  {currency.flag} {currency.country} · {currency.name}
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{
+                  background: 'rgba(34,197,94,0.1)', color: '#22c55e',
+                  fontSize: '11px', fontWeight: 700,
+                  padding: '2px 8px', borderRadius: '20px'
+                }}>
+                  {currency.code}
+                </span>
+                <CurrencySelector current={currency} onChange={setCurrency} compact />
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Error */}
-        {error && (
-          <div style={{
-            background: 'rgba(239,68,68,0.1)',
-            border: '1px solid rgba(239,68,68,0.25)',
-            borderRadius: '12px', padding: '14px', marginBottom: '16px'
-          }}>
-            <p style={{ color: '#f87171', fontSize: '14px', textAlign: 'center' }}>⚠️ {error}</p>
+        {/* ── Account card ── */}
+        <div style={{
+          background: '#0a1628', border: '1px solid #1a2740',
+          borderRadius: '14px', padding: '14px 18px',
+          marginBottom: '14px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+        }}>
+          <div>
+            <p style={{
+              color: '#6b7280', fontSize: '10px', fontWeight: 700,
+              textTransform: 'uppercase', marginBottom: '4px'
+            }}>
+              Paying As
+            </p>
+            <p style={{ fontWeight: 700, fontSize: '14px' }}>{user?.email}</p>
           </div>
-        )}
+          <CheckCircle size={20} color="#22c55e" />
+        </div>
 
-        {/* No signals warning */}
+        {/* ── No signals warning ── */}
         {!checkingSignals && !signalsAvailable && (
           <div style={{
-            background: 'rgba(239,68,68,0.08)',
-            border: '2px solid rgba(239,68,68,0.35)',
-            borderRadius: '14px', padding: '18px', marginBottom: '16px'
+            background: 'rgba(239,68,68,0.07)',
+            border: '2px solid rgba(239,68,68,0.3)',
+            borderRadius: '14px', padding: '16px',
+            marginBottom: '14px'
           }}>
             <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-              <span style={{ fontSize: '24px', flexShrink: 0 }}>⚠️</span>
+              <span style={{ fontSize: '22px', flexShrink: 0 }}>⚠️</span>
               <div>
-                <p style={{ fontWeight: 900, fontSize: '15px', color: '#f87171', marginBottom: '6px' }}>
+                <p style={{ fontWeight: 900, fontSize: '14px', color: '#f87171', marginBottom: '6px' }}>
                   No Signals Available Right Now
                 </p>
                 <p style={{ color: '#fca5a5', fontSize: '13px', lineHeight: 1.6, marginBottom: '10px' }}>
-                  Our team has not dispatched{' '}
-                  {plan?.type === 'football' ? 'football' : 'aviator'} signals yet today.
-                  Please wait until signals appear on the signals page before purchasing.
+                  Signals for today haven't been dispatched yet.
+                  Please wait until signals are available before purchasing.
                 </p>
                 <Link href={`/${plan?.type}`} style={{
-                  display: 'inline-block', background: '#374151', color: 'white',
-                  padding: '8px 16px', borderRadius: '8px',
+                  display: 'inline-flex', alignItems: 'center', gap: '6px',
+                  background: '#374151', color: 'white',
+                  padding: '7px 14px', borderRadius: '8px',
                   fontSize: '12px', fontWeight: 700, textDecoration: 'none'
                 }}>
-                  ← Check Signal Availability
+                  <ArrowLeft size={12} /> Check Availability
                 </Link>
               </div>
             </div>
           </div>
         )}
 
-        {/* PAY BUTTON */}
+        {/* ── Error ── */}
+        {error && (
+          <div style={{
+            background: 'rgba(239,68,68,0.08)',
+            border: '1px solid rgba(239,68,68,0.25)',
+            borderRadius: '12px', padding: '12px 16px',
+            marginBottom: '14px'
+          }}>
+            <p style={{ color: '#f87171', fontSize: '13px', textAlign: 'center' }}>
+              ⚠️ {error}
+            </p>
+          </div>
+        )}
+
+        {/* ── CTA button ── */}
         <button
           type="button"
           onClick={handlePay}
           disabled={!canPay}
           style={{
             width: '100%',
-            background: !canPay ? '#1a2740' : '#22c55e',
+            background: !canPay
+              ? '#1a2740'
+              : 'linear-gradient(135deg, #22c55e, #16a34a)',
             color: !canPay ? '#374151' : 'black',
-            border: 'none', borderRadius: '16px',
-            padding: '20px', fontSize: '18px', fontWeight: 900,
+            border: 'none', borderRadius: '14px',
+            padding: '18px 20px', fontSize: '17px', fontWeight: 900,
             cursor: !canPay ? 'not-allowed' : 'pointer',
             touchAction: 'manipulation', display: 'block',
-            marginBottom: '14px',
-            boxShadow: !canPay ? 'none' : '0 8px 25px rgba(34,197,94,0.35)',
-            transition: 'all 0.2s'
+            marginBottom: '12px',
+            boxShadow: !canPay ? 'none' : '0 8px 25px rgba(34,197,94,0.3)',
+            transition: 'all 0.2s', letterSpacing: '0.02em'
           }}
         >
           {currencyLoading
             ? '⏳ Detecting your currency...'
             : loading
-            ? '⏳ Redirecting to Paystack...'
+            ? '⏳ Processing...'
             : !signalsAvailable
-            ? '⏳ No signals dispatched yet'
-            : `${currency.flag} Pay ${currency.s}${localAmount.toLocaleString()} via Paystack`
+            ? '⏳ Waiting for signals...'
+            : `Complete Purchase · ${displayAmount}`
           }
         </button>
 
+        {/* ── Trust line ── */}
         <div style={{
           display: 'flex', alignItems: 'center',
-          justifyContent: 'center', gap: '6px'
+          justifyContent: 'center', gap: '16px',
+          flexWrap: 'wrap'
         }}>
-          <Lock size={12} color="#374151" />
-          <p style={{ color: '#374151', fontSize: '12px', textAlign: 'center' }}>
-            Secured by Paystack · SSL Encrypted · {currency.name}
-          </p>
+          {[
+            { icon: Lock, label: 'SSL Encrypted' },
+            { icon: ShieldCheck, label: 'Secure Checkout' },
+            { icon: Zap, label: 'Instant Delivery' },
+          ].map(({ icon: Icon, label }) => (
+            <div key={label} style={{
+              display: 'flex', alignItems: 'center', gap: '4px'
+            }}>
+              <Icon size={11} color="#374151" />
+              <span style={{ color: '#374151', fontSize: '11px' }}>{label}</span>
+            </div>
+          ))}
         </div>
+
+        {/* ── Payment notice ── */}
+        <p style={{
+          textAlign: 'center', color: '#1a2740',
+          fontSize: '11px', marginTop: '12px'
+        }}>
+          Payment processed securely · {currency.code} · Powered by Paystack
+        </p>
 
       </div>
     </div>
