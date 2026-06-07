@@ -123,8 +123,7 @@ export default function CurrencySelector({ current, onChange, compact }: Props) 
                   style={{
                     background: 'none', border: 'none',
                     color: 'white', fontSize: '13px',
-                    outline: 'none', width: '100%',
-                    placeholder: '#374151'
+                    outline: 'none', width: '100%'
                   }}
                 />
               </div>
@@ -143,7 +142,6 @@ export default function CurrencySelector({ current, onChange, compact }: Props) 
                 </p>
               )}
 
-              {/* FIX: Using c.countryCode instead of c.code to guarantee unique React loop tracking keys */}
               {filtered(!search ? popular : [...popular, ...others]).map(c => (
                 <button
                   key={`popular-${c.countryCode}`}
@@ -193,7 +191,6 @@ export default function CurrencySelector({ current, onChange, compact }: Props) 
                     All Currencies
                   </p>
                   
-                  {/* FIX: Using c.countryCode here as well */}
                   {filtered(others).map(c => (
                     <button
                       key={`other-${c.countryCode}`}
