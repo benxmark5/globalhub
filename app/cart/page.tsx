@@ -133,7 +133,7 @@ export default function CartPage() {
                 </span>
               </div>
               
-              <Link href="/checkout" style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#22c55e', color: 'black', fontWeight: 800, padding: '14px 32px', borderRadius: '12px', textDecoration: 'none', fontSize: '15px', width: '100%', justifyContent: 'center', smWidth: 'auto', boxShadow: '0 4px 14px rgba(34, 197, 94, 0.3)' }}>
+              <Link href="/checkout" style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#22c55e', color: 'black', fontWeight: 800, padding: '14px 32px', borderRadius: '12px', textDecoration: 'none', fontSize: '15px', width: '100%', justifyContent: 'center', boxShadow: '0 4px 14px rgba(34, 197, 94, 0.3)' }}>
                 Proceed to Checkout <CreditCard size={16} />
               </Link>
             </div>
