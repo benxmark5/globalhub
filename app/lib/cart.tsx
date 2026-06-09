@@ -1,16 +1,14 @@
 "use client";
-
-import { 
-  createContext, useContext, 
-  useState, ReactNode 
+import {
+  createContext, useContext, useState,
+  useEffect, ReactNode, useCallback
 } from 'react';
-import { supabase } from '../lib/supabase';
 
-type CartItem = {
+export type CartItem = {
   id: string;
   type: 'football' | 'aviator';
   name: string;
-  price: number;
+  price: number;        // USD base price
   league?: string;
   home?: string;
   away?: string;
@@ -22,36 +20,64 @@ type CartContextType = {
   addItem: (item: CartItem) => void;
   removeItem: (id: string) => void;
   clearCart: () => void;
-  total: number;
+  total: number;          // USD total
   count: number;
   isInCart: (id: string) => boolean;
 };
 
 const CartContext = createContext<CartContextType>({
   items: [], addItem: () => {}, removeItem: () => {},
-  clearCart: () => {}, total: 0, count: 0,
-  isInCart: () => false,
+  clearCart: () => {}, total: 0, count: 0, isInCart: () => false,
 });
+
+const CART_KEY = 'gh_cart_v2';
 
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
+  const [hydrated, setHydrated] = useState(false);
 
-  const addItem = (item: CartItem) => {
+  // Load from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(CART_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) setItems(parsed);
+      }
+    } catch { /* ignore */ }
+    setHydrated(true);
+  }, []);
+
+  // Persist to localStorage whenever items change
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      localStorage.setItem(CART_KEY, JSON.stringify(items));
+    } catch { /* ignore */ }
+  }, [items, hydrated]);
+
+  const addItem = useCallback((item: CartItem) => {
     setItems(prev => {
       if (prev.find(i => i.id === item.id)) return prev;
       return [...prev, item];
     });
-  };
+  }, []);
 
-  const removeItem = (id: string) => {
+  const removeItem = useCallback((id: string) => {
     setItems(prev => prev.filter(i => i.id !== id));
-  };
+  }, []);
 
-  const clearCart = () => setItems([]);
+  const clearCart = useCallback(() => {
+    setItems([]);
+    localStorage.removeItem(CART_KEY);
+  }, []);
+
   const total = items.reduce((s, i) => s + i.price, 0);
   const count = items.length;
-  const isInCart = (id: string) => 
-    items.some(i => i.id === id);
+  const isInCart = useCallback(
+    (id: string) => items.some(i => i.id === id),
+    [items]
+  );
 
   return (
     <CartContext.Provider value={{

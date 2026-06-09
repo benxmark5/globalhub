@@ -1,4 +1,3 @@
-// app/checkout/page.tsx
 "use client";
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -134,7 +133,10 @@ export default function CheckoutPage() {
 
       const res = await fetch('/api/paystack/initialize', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-base-usd': String(usdPrice)
+        },
         body: JSON.stringify({
           email: user.email,
           amount: localAmount,
@@ -152,7 +154,6 @@ export default function CheckoutPage() {
       const data = await res.json();
 
       if (data.success && data.authorizationUrl) {
-        // Save currency used to DB
         try {
           await supabase.from('purchases')
             .update({
@@ -185,7 +186,6 @@ export default function CheckoutPage() {
     );
   }
 
-  // ── Render ───────────────────────────────────
   return (
     <div style={{
       minHeight: '100dvh', background: '#060f1e',
@@ -227,7 +227,6 @@ export default function CheckoutPage() {
             </span>
           </Link>
 
-          {/* Currency selector */}
           <CurrencySelector
             current={currency}
             onChange={setCurrency}
@@ -350,7 +349,7 @@ export default function CheckoutPage() {
                   <div style={{
                     display: 'flex', alignItems: 'center', gap: '6px', color: '#6b7280'
                   }}>
-                    <RefreshCw size={14} className="animate-spin" />
+                    <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />
                     <span style={{ fontSize: '13px' }}>Detecting...</span>
                   </div>
                 ) : (
@@ -395,6 +394,63 @@ export default function CheckoutPage() {
                 <CurrencySelector current={currency} onChange={setCurrency} compact />
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* ── Payment method info ── */}
+        <div style={{
+          background: '#0a1628', border: '1px solid #1a2740',
+          borderRadius: '14px', padding: '16px', marginBottom: '14px'
+        }}>
+          <p style={{
+            fontWeight: 700, fontSize: '13px', marginBottom: '10px',
+            color: 'white'
+          }}>
+            💳 Accepted Payment Methods
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            {/* Always show cards */}
+            {['Visa', 'Mastercard', 'Amex'].map(card => (
+              <span key={card} style={{
+                background: '#0f1f33', border: '1px solid #1a2740',
+                color: '#d1d5db', fontSize: '12px',
+                padding: '6px 12px', borderRadius: '8px', fontWeight: 600
+              }}>
+                {card === 'Visa' ? '💙' : card === 'Mastercard' ? '🔴' : '💚'} {card}
+              </span>
+            ))}
+
+            {/* Only show M-Pesa & Airtel Money for Kenyan users */}
+            {currency.countryCode === 'KE' && (
+              <>
+                <span style={{
+                  background: '#0f1f33', border: '1px solid #1a2740',
+                  color: '#d1d5db', fontSize: '12px',
+                  padding: '6px 12px', borderRadius: '8px', fontWeight: 600
+                }}>
+                  📱 M-Pesa
+                </span>
+                <span style={{
+                  background: '#0f1f33', border: '1px solid #1a2740',
+                  color: '#d1d5db', fontSize: '12px',
+                  padding: '6px 12px', borderRadius: '8px', fontWeight: 600
+                }}>
+                  📱 Airtel Money
+                </span>
+              </>
+            )}
+
+            {/* International users alternative context flag */}
+            {currency.countryCode !== 'KE' && (
+              <span style={{
+                background: 'rgba(34,197,94,0.08)',
+                border: '1px solid rgba(34,197,94,0.2)',
+                color: '#86efac', fontSize: '12px',
+                padding: '6px 12px', borderRadius: '8px', fontWeight: 600
+              }}>
+                🌍 International Cards Accepted
+              </span>
+            )}
           </div>
         </div>
 

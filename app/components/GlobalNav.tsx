@@ -6,7 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import {
   Menu, X, Trophy, TrendingUp, Zap,
   DollarSign, User, LogOut, HelpCircle,
-  Shield, FileText, Heart, ShoppingCart
+  Shield, FileText, Heart, ShoppingCart, ShoppingBag
 } from 'lucide-react';
 import { useCart } from '../lib/cart';
 
@@ -25,18 +25,23 @@ export default function GlobalNav() {
   } | null>(null);
   const { count: cartCount } = useCart();
 
+  // ── Updated Auth State Sync ─────────────────
   useEffect(() => {
+    // Get initial session immediately
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
     });
+
+    // Listen for changes (login, logout, token refresh)
     const { data: { subscription } } =
-      supabase.auth.onAuthStateChange((_, session) => {
+      supabase.auth.onAuthStateChange((_event, session) => {
         setUser(session?.user ?? null);
       });
+
     return () => subscription.unsubscribe();
   }, []);
 
-  // Close on route change
+  // Close drawer on route change
   useEffect(() => { setOpen(false); }, [pathname]);
 
   const navLinks = [
@@ -58,20 +63,13 @@ export default function GlobalNav() {
     },
   ];
 
+  // ── Updated Auth-Aware Account Links ────────
   const accountLinks = user ? [
-    {
-      icon: User, label: 'My Account',
-      href: '/account', color: '#a78bfa'
-    },
+    { icon: User,        label: 'My Account',  href: '/account',  color: '#a78bfa' },
+    { icon: ShoppingBag, label: 'My Orders',   href: '/account?tab=history', color: '#fbbf24' },
   ] : [
-    {
-      icon: User, label: 'Login',
-      href: '/login', color: '#a78bfa'
-    },
-    {
-      icon: Trophy, label: 'Register',
-      href: '/register', color: '#22c55e'
-    },
+    { icon: User,   label: 'Login',    href: '/login',    color: '#60a5fa' },
+    { icon: Trophy, label: 'Register', href: '/register', color: '#22c55e' },
   ];
 
   const infoLinks = [
@@ -286,7 +284,7 @@ export default function GlobalNav() {
             const Icon = link.icon;
             const active = isActive(link.href);
             return (
-              <Link key={link.href} href={link.href} style={{
+              <Link key={link.label} href={link.href} style={{
                 display: 'flex', alignItems: 'center', gap: '12px',
                 padding: '12px 10px', borderRadius: '10px',
                 marginBottom: '4px', textDecoration: 'none',
@@ -303,7 +301,8 @@ export default function GlobalNav() {
                   <Icon size={16} color={link.color} />
                 </div>
                 <span style={{
-                  color: '#d1d5db', fontSize: '14px', fontWeight: 600
+                  color: active ? link.color : '#d1d5db',
+                  fontSize: '14px', fontWeight: active ? 900 : 600
                 }}>
                   {link.label}
                 </span>

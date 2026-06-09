@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
       .select()
       .single();
 
-    // 🌟 ADDED: Log payment to activity feed
+    // Log payment to activity feed
     if (updated) {
       await supabase.from('activity_feed').insert({
         type: 'payment',
@@ -78,51 +78,34 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user email from Paystack response
-    const userEmail = data.data?.customer?.email ||
-      existing?.email || '';
-    const userName = existing?.user_id
-      ? 'Valued Customer' : 'Customer';
+    const userEmail = data.data?.customer?.email || existing?.email || '';
 
-    // Send receipt email immediately
+    // Send receipt email immediately — don't wait for it
     if (userEmail && updated && !existing?.email_sent) {
-      // Update email_sent flag
-      await supabase
-        .from('purchases')
+      await supabase.from('purchases')
         .update({ email_sent: true })
         .eq('reference', reference);
 
-      // Get current signals to include in email
-      const { data: signals } = await supabase
-        .from('markets')
-        .select('*')
-        .eq('is_live', true)
-        .not('league_name', 'eq',
-          updated.signal_type === 'football' ? 'AVIATOR' : 'FOOTBALL'
-        )
-        .limit(updated.signals_count || 1);
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://globalhub.vercel.app';
 
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL ||
-        'https://globalhub.vercel.app';
-
-      // Send receipt with signals link
+      // Fire and forget — non-blocking
       fetch(`${appUrl}/api/send-receipt`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: userEmail,
-          name: userName,
+          name: 'Valued Customer',
           reference,
           signalType: updated.signal_type || 'football',
           signalsCount: updated.signals_count || 1,
           bonusSignals: updated.bonus_signals || 0,
-          amount: updated.amount,
-          currency: updated.currency || 'KES',
+          amount: updated.display_amount || updated.amount,
+          currency: updated.display_currency || updated.currency || 'KES',
           planLabel: updated.plan || 'Signal Package',
           appUrl,
-          signalsLink: `${appUrl}/${updated.signal_type}`,
-          availableSignals: signals?.length || 0,
+          signalsLink: `${appUrl}/${updated.signal_type || 'football'}`,
         }),
-      }).catch(e => console.error('Email error:', e));
+      }).catch(e => console.error('Email send error:', e));
     }
 
     return Response.json({
