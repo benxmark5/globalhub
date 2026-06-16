@@ -885,7 +885,7 @@ export default function Home() {
           <div style={{ fontWeight: 900, fontSize: '20px', marginBottom: '8px' }}>
             Global<span style={{ color: '#22c55e' }}>Hub</span>
           </div>
-          <p style={{ color: '#6b7280', fontSize: '13px', maxWWidth: '500px', margin: '0 auto 24px' }}>
+          <p style={{ color: '#6b7280', fontSize: '13px', maxWidth: '500px', margin: '0 auto 24px' }}>
             {t.desc}
           </p>
           <div style={{
