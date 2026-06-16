@@ -73,6 +73,7 @@ export default function GlobalNav() {
   ];
 
   const infoLinks = [
+    { icon: TrendingUp, label: 'Become a Provider', href: '/become-provider', color: '#22c55e' },
     { icon: HelpCircle, label: 'FAQ', href: '/faq', color: '#6b7280' },
     { icon: Shield, label: 'Support', href: '/support', color: '#6b7280' },
     { icon: FileText, label: 'Terms', href: '/terms', color: '#6b7280' },
@@ -326,15 +327,19 @@ export default function GlobalNav() {
           </p>
           {infoLinks.map(link => {
             const Icon = link.icon;
+            // Highlight the provider link dynamically if it has a specific color
+            const isProvider = link.href === '/become-provider';
             return (
               <Link key={link.href} href={link.href} style={{
                 display: 'flex', alignItems: 'center', gap: '12px',
                 padding: '10px', borderRadius: '10px',
                 marginBottom: '2px', textDecoration: 'none'
               }}>
-                <Icon size={15} color="#374151" />
+                <Icon size={15} color={isProvider ? link.color : "#374151"} />
                 <span style={{
-                  color: '#6b7280', fontSize: '13px'
+                  color: isProvider ? '#22c55e' : '#6b7280', 
+                  fontSize: '13px',
+                  fontWeight: isProvider ? 700 : 400
                 }}>
                   {link.label}
                 </span>

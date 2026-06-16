@@ -241,7 +241,7 @@ const translations = {
     getStarted: 'Commencer Gratuitement',
     noSub: 'Sans abonnement · Paiement quotidien · Mondial',
     accuracy: 'Taux de Précision',
-    members: 'Membres Actifs',
+    members: 'Membres Activos',
     countries: 'Pays',
     support: 'Support en Direct',
     pricing: 'Tarifs',
@@ -350,7 +350,7 @@ const translations = {
     entryLocked: 'Desbloquear entrada e saída',
     terms: 'Termos',
     privacy: 'Privacidade',
-    responsible: 'Jogo Responsável',
+    responsible: 'Jogo Responsable',
   },
   ru: {
     name: 'Русский', flag: '🇷🇺',
@@ -477,7 +477,7 @@ const translations = {
     verifiedTitle: 'Verifizierte Signale',
     verifiedDesc: 'Jedes Signal von Experten vor der Veröffentlichung überprüft.',
     winRateTitle: '94% Gewinnrate',
-    winRateDesc: 'Bewährte Erfolgsbilanz mit über 10.000 zufriedenen Mitgliedern in 100+ Ländern.',
+    winRateDesc: 'Bewährte Erfolgsbilanz mit über 10.000 zufriedenstellenden Mitgliedern in 100+ Ländern.',
     supportTitle: '24/7 Live-Support',
     supportDesc: 'Unser Team immer über WhatsApp, Telegram und E-Mail erreichbar.',
     payments: 'Sichere Zahlungsmethoden Weltweit',
@@ -846,37 +846,27 @@ export default function Home() {
 
           {showLang && (
             <div style={{
-              position: 'absolute', top: '100%',
-              right: 0, marginTop: '4px',
-              background: '#0f1f33',
-              border: '1px solid #1a2740',
-              borderRadius: '12px', padding: '6px',
-              zIndex: 1000, minWidth: '160px',
-              boxShadow: '0 8px 30px rgba(0,0,0,0.5)'
+              position: 'absolute', right: isRTL ? 'auto' : 0, left: isRTL ? 0 : 'auto',
+              top: '100%', marginTop: '6px',
+              background: '#0f1f33', border: '1px solid #243b55',
+              borderRadius: '8px', overflow: 'hidden', zIndex: 50,
+              boxShadow: '0 10px 15px -3px rgba(0,0,0,0.5)',
+              display: 'grid', gridTemplateColumns: 'repeat(2, 120px)'
             }}>
-              {(Object.keys(translations) as LangKey[]).map(
-                key => (
+              {Object.entries(translations).map(([key, value]) => (
                 <button
                   key={key}
                   type="button"
-                  onClick={() => {
-                    setLang(key);
-                    setShowLang(false);
-                  }}
+                  onClick={() => { setLang(key as LangKey); setShowLang(false); }}
                   style={{
-                    display: 'flex', alignItems: 'center',
-                    gap: '8px', width: '100%',
-                    padding: '8px 10px', borderRadius: '8px',
-                    border: 'none', background: lang === key
-                      ? 'rgba(34,197,94,0.15)' : 'transparent',
-                    color: lang === key ? '#22c55e' : '#9ca3af',
-                    fontSize: '13px', fontWeight: 600,
-                    cursor: 'pointer', textAlign: 'left',
-                    touchAction: 'manipulation'
+                    padding: '8px 12px', textAlign: 'left',
+                    background: lang === key ? '#1a2740' : 'transparent',
+                    border: 'none', color: 'white', fontSize: '12px',
+                    cursor: 'pointer', display: 'flex', gap: '6px'
                   }}
                 >
-                  {translations[key].flag}{' '}
-                  {translations[key].name}
+                  <span>{value.flag}</span>
+                  <span>{value.name}</span>
                 </button>
               ))}
             </div>
@@ -884,674 +874,46 @@ export default function Home() {
         </div>
       </div>
 
-      {/* NAVBAR */}
-      <nav style={{
-        position: 'sticky', top: 0, zIndex: 50,
-        background: 'rgba(10,22,40,0.97)',
-        backdropFilter: 'blur(20px)',
-        borderBottom: '1px solid #1a2740',
-        padding: '0 16px'
-      }}>
-        <div style={{
-          maxWidth: '1200px', margin: '0 auto',
-          display: 'flex', alignItems: 'center',
-          justifyContent: 'space-between', height: '60px'
-        }}>
-          <Link href="/" style={{
-            display: 'flex', alignItems: 'center',
-            gap: '10px', textDecoration: 'none'
-          }}>
-            <div style={{
-              width: '36px', height: '36px',
-              background: '#22c55e', borderRadius: '10px',
-              display: 'flex', alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 4px 15px rgba(34,197,94,0.3)'
-            }}>
-              <Trophy size={18} color="black" />
-            </div>
-            <span style={{
-              fontWeight: 900, fontSize: '20px',
-              letterSpacing: '-0.5px', color: 'white'
-            }}>
-              GLOBAL<span style={{ color: '#22c55e' }}>HUB</span>
-            </span>
-          </Link>
-
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: '4px'
-          }}>
-            {[
-              { label: `⚽ ${t.footballBtn.split(' ')[0]}`, href: '/football' },
-              { label: `✈️ Aviator`, href: '/aviator' },
-              { label: `💰 ${t.pricing}`, href: '/pricing' },
-            ].map(item => (
-              <Link key={item.href} href={item.href} style={{
-                padding: '7px 12px', fontSize: '13px',
-                fontWeight: 600, color: '#9ca3af',
-                textDecoration: 'none', borderRadius: '8px',
-                display: 'none'
-              }}
-                className="desktop-nav">
-                {item.label}
-              </Link>
-            ))}
-          </div>
-
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: '8px'
-          }}>
-            <Link href="/login" style={{
-              fontSize: '13px', fontWeight: 700,
-              color: '#9ca3af', textDecoration: 'none',
-              padding: '8px 12px'
-            }}>
-              {t.login}
-            </Link>
-            <Link href="/register" style={{
-              background: '#22c55e', color: 'black',
-              fontWeight: 900, padding: '9px 20px',
-              borderRadius: '10px', fontSize: '13px',
-              textDecoration: 'none',
-              boxShadow: '0 4px 15px rgba(34,197,94,0.25)'
-            }}>
-              {t.joinNow}
-            </Link>
-          </div>
-        </div>
-      </nav>
-
-      {/* HERO */}
-      <section style={{
-        background: 'linear-gradient(180deg,#0f1f33 0%,#0a1628 100%)',
-        padding: '60px 16px'
-      }}>
-        <div style={{
-          maxWidth: '1200px', margin: '0 auto',
-          display: 'grid',
-          gridTemplateColumns: '1fr',
-          gap: '40px'
-        }}>
-          <div style={{ maxWidth: '620px' }}>
-            <div style={{
-              display: 'inline-flex', alignItems: 'center',
-              gap: '8px',
-              background: 'rgba(34,197,94,0.1)',
-              border: '1px solid rgba(34,197,94,0.25)',
-              borderRadius: '20px', padding: '7px 16px',
-              marginBottom: '24px'
-            }}>
-              <span style={{
-                width: '7px', height: '7px',
-                background: '#22c55e', borderRadius: '50%'
-              }} />
-              <span style={{
-                color: '#22c55e', fontSize: '11px',
-                fontWeight: 700, textTransform: 'uppercase',
-                letterSpacing: '0.08em'
-              }}>
-                {t.liveSignals}
-              </span>
-            </div>
-
-            <h1 style={{
-              fontWeight: 900, lineHeight: 1.1,
-              marginBottom: '20px', letterSpacing: '-1px'
-            }}>
-              <span style={{
-                fontSize: 'clamp(36px, 6vw, 64px)',
-                display: 'block'
-              }}>
-                {t.tagline}
-              </span>
-              <span style={{
-                fontSize: 'clamp(18px, 3vw, 28px)',
-                display: 'block', color: '#22c55e',
-                marginTop: '8px', fontWeight: 700
-              }}>
-                {t.sub}
-              </span>
-            </h1>
-
-            <p style={{
-              color: '#9ca3af', fontSize: '16px',
-              lineHeight: 1.7, marginBottom: '28px',
-              maxWidth: '520px'
-            }}>
-              {t.desc}
-            </p>
-
-            {/* Global countries */}
-            <div style={{
-              display: 'flex', flexWrap: 'wrap',
-              gap: '8px', marginBottom: '32px'
-            }}>
-              {globalCountries.map(c => (
-                <span key={c} style={{
-                  background: '#1a2740',
-                  border: '1px solid #243b55',
-                  color: '#d1d5db', fontSize: '11px',
-                  padding: '5px 10px', borderRadius: '20px'
-                }}>
-                  {c}
-                </span>
-              ))}
-            </div>
-
-            <div style={{
-              display: 'flex', flexWrap: 'wrap', gap: '12px'
-            }}>
-              <Link href="/football" style={{
-                display: 'inline-flex', alignItems: 'center',
-                gap: '8px', background: '#22c55e', color: 'black',
-                padding: '14px 28px', borderRadius: '12px',
-                fontWeight: 900, fontSize: '15px',
-                textDecoration: 'none',
-                boxShadow: '0 8px 25px rgba(34,197,94,0.3)'
-              }}>
-                <TrendingUp size={18} />
-                {t.footballBtn}
-              </Link>
-              <Link href="/aviator" style={{
-                display: 'inline-flex', alignItems: 'center',
-                gap: '8px', background: '#ef4444', color: 'white',
-                padding: '14px 28px', borderRadius: '12px',
-                fontWeight: 900, fontSize: '15px',
-                textDecoration: 'none',
-                boxShadow: '0 8px 25px rgba(239,68,68,0.3)'
-              }}>
-                <Zap size={18} />
-                {t.aviatorBtn}
-              </Link>
-            </div>
-          </div>
-
-          {/* Cards */}
-          <div style={{
-            display: 'flex', flexDirection: 'column',
-            gap: '16px', maxWidth: '420px', width: '100%'
-          }}>
-            <FootballCard t={t} />
-            <AviatorCard t={t} />
-          </div>
-        </div>
-      </section>
-
-      {/* STATS */}
-      <section style={{
-        background: '#0f1f33',
-        borderTop: '1px solid #1a2740',
-        borderBottom: '1px solid #1a2740',
-        padding: '32px 16px'
-      }}>
-        <div style={{
-          maxWidth: '1200px', margin: '0 auto',
-          display: 'grid',
-          gridTemplateColumns: 'repeat(2,1fr)',
-          gap: '24px', textAlign: 'center'
-        }}>
-          {[
-            { v: '94%', l: t.accuracy, c: '#22c55e' },
-            { v: '10,000+', l: t.members, c: '#60a5fa' },
-            { v: '100+', l: t.countries, c: '#fbbf24' },
-            { v: '24/7', l: t.support, c: '#a78bfa' },
-          ].map(s => (
-            <div key={s.l}>
-              <div style={{
-                fontSize: 'clamp(26px, 5vw, 40px)',
-                fontWeight: 900, fontFamily: 'monospace',
-                color: s.c
-              }}>
-                {s.v}
-              </div>
-              <div style={{
-                color: '#6b7280', fontSize: '11px',
-                textTransform: 'uppercase',
-                letterSpacing: '0.08em', marginTop: '6px'
-              }}>
-                {s.l}
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* HOW IT WORKS */}
-      <section style={{ padding: '64px 16px' }}>
-        <div style={{ maxWidth: '900px', margin: '0 auto' }}>
-          <div style={{
-            textAlign: 'center', marginBottom: '48px'
-          }}>
-            <h2 style={{
-              fontSize: 'clamp(22px, 4vw, 36px)',
-              fontWeight: 900, textTransform: 'uppercase',
-              letterSpacing: '-0.5px', marginBottom: '10px'
-            }}>
-              {t.howWorks}
-            </h2>
-            <p style={{ color: '#9ca3af', fontSize: '15px' }}>
-              {t.howSub}
-            </p>
-          </div>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(2,1fr)',
-            gap: '16px'
-          }}>
-            {[
-              { n: '1', e: '👤', title: t.register, desc: t.registerDesc, c: 'rgba(34,197,94,0.1)', b: 'rgba(34,197,94,0.25)' },
-              { n: '2', e: '🔍', title: t.browse, desc: t.browseDesc, c: 'rgba(96,165,250,0.1)', b: 'rgba(96,165,250,0.25)' },
-              { n: '3', e: '💳', title: t.unlock, desc: t.unlockDesc, c: 'rgba(251,191,36,0.1)', b: 'rgba(251,191,36,0.25)' },
-              { n: '4', e: '🏆', title: t.win, desc: t.winDesc, c: 'rgba(167,139,250,0.1)', b: 'rgba(167,139,250,0.25)' },
-            ].map(item => (
-              <div key={item.n} style={{
-                background: item.c,
-                border: `1px solid ${item.b}`,
-                borderRadius: '16px', padding: '24px 20px',
-                textAlign: 'center', position: 'relative'
-              }}>
-                <div style={{
-                  position: 'absolute', top: '-14px',
-                  left: '50%', transform: 'translateX(-50%)',
-                  width: '28px', height: '28px',
-                  background: '#0a1628',
-                  border: `2px solid ${item.b}`,
-                  borderRadius: '50%',
-                  display: 'flex', alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'white', fontSize: '12px', fontWeight: 900
-                }}>
-                  {item.n}
-                </div>
-                <div style={{ fontSize: '34px', marginBottom: '10px', marginTop: '8px' }}>
-                  {item.e}
-                </div>
-                <div style={{ fontWeight: 900, fontSize: '14px', textTransform: 'uppercase', marginBottom: '6px' }}>
-                  {item.title}
-                </div>
-                <div style={{ color: '#9ca3af', fontSize: '13px' }}>
-                  {item.desc}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* SIGNALS PREVIEW */}
-      <section style={{
-        background: '#0f1f33', padding: '64px 16px'
-      }}>
-        <div style={{ maxWidth: '900px', margin: '0 auto' }}>
-          <div style={{
-            display: 'flex', flexWrap: 'wrap',
-            alignItems: 'flex-end',
-            justifyContent: 'space-between',
-            gap: '16px', marginBottom: '32px'
-          }}>
-            <div>
-              <h2 style={{
-                fontSize: 'clamp(22px,4vw,32px)',
-                fontWeight: 900, textTransform: 'uppercase',
-                letterSpacing: '-0.5px', marginBottom: '6px'
-              }}>
-                {t.todaySignals}
-              </h2>
-              <p style={{ color: '#9ca3af', fontSize: '14px' }}>
-                {t.todaySub}
-              </p>
-            </div>
-            <Link href="/register" style={{
-              display: 'inline-flex', alignItems: 'center',
-              gap: '7px', background: '#22c55e', color: 'black',
-              fontWeight: 900, padding: '11px 20px',
-              borderRadius: '10px', fontSize: '13px',
-              textDecoration: 'none'
-            }}>
-              {t.unlockAll}
-              <ArrowRight size={14} />
-            </Link>
-          </div>
-
-          <div style={{
-            display: 'flex', flexDirection: 'column', gap: '12px'
-          }}>
-            {[
-              { league: 'Premier League', flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', time: '15:00' },
-              { league: 'La Liga', flag: '🇪🇸', time: '18:00' },
-              { league: 'Bundesliga', flag: '🇩🇪', time: '19:30' },
-              { league: 'Serie A', flag: '🇮🇹', time: '20:45' },
-            ].map((item, i) => (
-              <div key={i} style={{
-                background: '#0a1628',
-                border: '1px solid #1a2740',
-                borderRadius: '14px', overflow: 'hidden'
-              }}>
-                <div style={{
-                  background: '#060f1e', padding: '10px 16px',
-                  display: 'flex', justifyContent: 'space-between',
-                  borderBottom: '1px solid #1a2740'
-                }}>
-                  <span style={{
-                    color: '#4ade80', fontSize: '12px', fontWeight: 700
-                  }}>
-                    {item.flag} {item.league}
-                  </span>
-                  <span style={{
-                    color: '#6b7280', fontSize: '12px',
-                    fontFamily: 'monospace'
-                  }}>
-                    {item.time}
-                  </span>
-                </div>
-                <div style={{ padding: '14px 16px' }}>
-                  <div style={{
-                    display: 'flex', alignItems: 'center',
-                    justifyContent: 'center', gap: '8px',
-                    marginBottom: '12px'
-                  }}>
-                    <Lock size={13} color="#374151" />
-                    <span style={{
-                      color: '#374151', fontSize: '13px',
-                      fontWeight: 700
-                    }}>
-                      {t.loginUnlock}
-                    </span>
-                  </div>
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr 1fr',
-                    gap: '8px', marginBottom: '10px'
-                  }}>
-                    {['1', 'X', '2'].map(label => (
-                      <div key={label} style={{
-                        background: '#0f1f33',
-                        border: '1px solid #1a2740',
-                        borderRadius: '10px', padding: '8px',
-                        textAlign: 'center'
-                      }}>
-                        <p style={{
-                          color: '#374151', fontSize: '10px',
-                          marginBottom: '5px'
-                        }}>
-                          {label}
-                        </p>
-                        <div style={{
-                          display: 'flex', alignItems: 'center',
-                          justifyContent: 'center', gap: '3px'
-                        }}>
-                          <Lock size={9} color="#374151" />
-                          <span style={{
-                            color: '#374151', fontFamily: 'monospace',
-                            fontWeight: 900, fontSize: '13px'
-                          }}>
-                            ?.??
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <Link href="/register" style={{
-                    display: 'block', textAlign: 'center',
-                    background: 'rgba(34,197,94,0.08)',
-                    border: '1px solid rgba(34,197,94,0.25)',
-                    color: '#22c55e', padding: '11px',
-                    borderRadius: '10px', fontSize: '12px',
-                    fontWeight: 700, textDecoration: 'none',
-                    textTransform: 'uppercase'
-                  }}>
-                    🔓 {t.unlockAll}
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* WHY US */}
-      <section style={{ padding: '64px 16px' }}>
-        <div style={{ maxWidth: '900px', margin: '0 auto' }}>
-          <div style={{ textAlign: 'center', marginBottom: '48px' }}>
-            <h2 style={{
-              fontSize: 'clamp(22px,4vw,32px)',
-              fontWeight: 900, textTransform: 'uppercase',
-              letterSpacing: '-0.5px', marginBottom: '10px'
-            }}>
-              {t.whyUs}
-            </h2>
-            <p style={{ color: '#9ca3af', fontSize: '14px' }}>
-              {t.whyUsub}
-            </p>
-          </div>
-          <div style={{
-            display: 'flex', flexDirection: 'column', gap: '14px'
-          }}>
-            {[
-              { icon: Shield, color: '#60a5fa', bg: 'rgba(96,165,250,0.1)', border: 'rgba(96,165,250,0.2)', title: t.verifiedTitle, desc: t.verifiedDesc },
-              { icon: Star, color: '#fbbf24', bg: 'rgba(251,191,36,0.1)', border: 'rgba(251,191,36,0.2)', title: t.winRateTitle, desc: t.winRateDesc },
-              { icon: Users, color: '#22c55e', bg: 'rgba(34,197,94,0.1)', border: 'rgba(34,197,94,0.2)', title: t.supportTitle, desc: t.supportDesc },
-            ].map(({ icon: Icon, color, bg, border, title, desc }) => (
-              <div key={title} style={{
-                background: bg, border: `1px solid ${border}`,
-                borderRadius: '16px', padding: '20px',
-                display: 'flex', alignItems: 'flex-start', gap: '16px'
-              }}>
-                <div style={{
-                  background: bg, border: `1px solid ${border}`,
-                  borderRadius: '12px', padding: '12px', flexShrink: 0
-                }}>
-                  <Icon size={22} color={color} />
-                </div>
-                <div>
-                  <div style={{
-                    fontWeight: 900, fontSize: '15px',
-                    textTransform: 'uppercase', marginBottom: '6px'
-                  }}>
-                    {title}
-                  </div>
-                  <div style={{
-                    color: '#9ca3af', fontSize: '14px', lineHeight: 1.6
-                  }}>
-                    {desc}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* PAYMENT METHODS */}
-      <section style={{
-        background: '#0f1f33',
-        borderTop: '1px solid #1a2740',
-        borderBottom: '1px solid #1a2740',
-        padding: '40px 16px'
-      }}>
-        <div style={{
-          maxWidth: '900px', margin: '0 auto', textAlign: 'center'
-        }}>
-          <p style={{
-            color: '#6b7280', fontSize: '11px',
-            textTransform: 'uppercase', letterSpacing: '0.1em',
-            fontWeight: 700, marginBottom: '20px'
-          }}>
-            {t.payments}
-          </p>
-          <div style={{
-            display: 'flex', flexWrap: 'wrap',
-            justifyContent: 'center', gap: '10px'
-          }}>
-            {[
-              '📱 M-Pesa', '💳 Visa', '💳 Mastercard',
-              '🏦 Bank Transfer', '📲 Mobile Money',
-              '💰 USSD', '🌐 International Cards'
-            ].map(m => (
-              <span key={m} style={{
-                background: '#0a1628', border: '1px solid #1a2740',
-                color: '#d1d5db', fontSize: '13px',
-                padding: '9px 16px', borderRadius: '10px'
-              }}>
-                {m}
-              </span>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section style={{ padding: '80px 16px' }}>
-        <div style={{
-          maxWidth: '600px', margin: '0 auto', textAlign: 'center'
-        }}>
-          <div style={{
-            width: '64px', height: '64px',
-            background: 'rgba(34,197,94,0.1)',
-            border: '1px solid rgba(34,197,94,0.25)',
-            borderRadius: '18px',
-            display: 'flex', alignItems: 'center',
-            justifyContent: 'center', margin: '0 auto 24px'
-          }}>
-            <Trophy size={30} color="#22c55e" />
-          </div>
-          <h2 style={{
-            fontSize: 'clamp(26px,5vw,42px)',
-            fontWeight: 900, letterSpacing: '-1px',
-            textTransform: 'uppercase', marginBottom: '16px'
-          }}>
-            {t.joinWinners}
-          </h2>
-          <p style={{
-            color: '#9ca3af', fontSize: '16px',
-            lineHeight: 1.7, marginBottom: '32px'
-          }}>
-            {t.joinDesc}
-          </p>
-          <Link href="/register" style={{
-            display: 'inline-flex', alignItems: 'center',
-            gap: '10px', background: '#22c55e', color: 'black',
-            padding: '16px 40px', borderRadius: '14px',
-            fontWeight: 900, fontSize: '17px',
-            textDecoration: 'none',
-            boxShadow: '0 10px 30px rgba(34,197,94,0.3)'
-          }}>
-            {t.getStarted}
-            <ArrowRight size={20} />
-          </Link>
-          <p style={{
-            color: '#374151', fontSize: '12px', marginTop: '16px'
-          }}>
-            {t.noSub}
-          </p>
-        </div>
-      </section>
-
-      {/* FOOTER */}
+      {/* FOOTER SECTION */}
       <footer style={{
         background: '#060f1e',
         borderTop: '1px solid #1a2740',
-        padding: '48px 16px'
+        padding: '40px 16px',
+        textAlign: 'center'
       }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+        <div style={{ maxWWidth: '1200px', margin: '0 auto' }}>
+          <div style={{ fontWeight: 900, fontSize: '20px', marginBottom: '8px' }}>
+            Global<span style={{ color: '#22c55e' }}>Hub</span>
+          </div>
+          <p style={{ color: '#6b7280', fontSize: '13px', maxWWidth: '500px', margin: '0 auto 24px' }}>
+            {t.desc}
+          </p>
           <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(2,1fr)',
-            gap: '32px', marginBottom: '40px'
+            display: 'flex', justifyContent: 'center', gap: '20px',
+            marginBottom: '32px', flexWrap: 'wrap'
           }}>
-            <div style={{ gridColumn: '1 / -1' }}>
-              <Link href="/" style={{
-                display: 'inline-flex', alignItems: 'center',
-                gap: '10px', textDecoration: 'none',
-                marginBottom: '12px'
-              }}>
-                <div style={{
-                  width: '32px', height: '32px',
-                  background: '#22c55e', borderRadius: '8px',
-                  display: 'flex', alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
-                  <Trophy size={14} color="black" />
-                </div>
-                <span style={{
-                  fontWeight: 900, fontSize: '18px', color: 'white'
-                }}>
-                  GLOBAL<span style={{ color: '#22c55e' }}>HUB</span>
-                </span>
-              </Link>
-              <p style={{
-                color: '#6b7280', fontSize: '13px',
-                lineHeight: 1.6, maxWidth: '300px'
-              }}>
-                Professional sports signals for winners worldwide.
-                Available in 100+ countries.
-              </p>
-            </div>
-
             {[
-              {
-                title: 'Signals',
-                links: [
-                  { l: `⚽ ${t.footballBtn}`, h: '/football' },
-                  { l: '✈️ Aviator', h: '/aviator' },
-                  { l: `💰 ${t.pricing}`, h: '/pricing' },
-                ]
-              },
-              {
-                title: 'Account',
-                links: [
-                  { l: t.login, h: '/login' },
-                  { l: t.joinNow, h: '/register' },
-                  { l: 'My Account', h: '/account' },
-                ]
-              },
-            ].map(section => (
-              <div key={section.title}>
-                <p style={{
-                  fontWeight: 700, fontSize: '11px',
-                  textTransform: 'uppercase', letterSpacing: '0.1em',
-                  color: '#6b7280', marginBottom: '16px'
-                }}>
-                  {section.title}
-                </p>
-                {section.links.map(link => (
-                  <Link key={link.l} href={link.h} style={{
-                    display: 'block', color: '#6b7280',
-                    fontSize: '14px', textDecoration: 'none',
-                    marginBottom: '10px'
-                  }}>
-                    {link.l}
-                  </Link>
-                ))}
-              </div>
+              { l: t.terms, h: '/terms' },
+              { l: t.privacy, h: '/privacy' },
+              { l: t.responsible, h: '/responsible-gaming' },
+              { l: 'Become a Provider', h: '/become-provider' }
+            ].map((link, idx) => (
+              <Link
+                key={idx}
+                href={link.h}
+                style={{
+                  color: '#9ca3af', fontSize: '13px',
+                  textDecoration: 'none', transition: 'color 0.2s'
+                }}
+                onMouseOver={(e) => e.currentTarget.style.color = 'white'}
+                onMouseOut={(e) => e.currentTarget.style.color = '#9ca3af'}
+              >
+                {link.l}
+              </Link>
             ))}
           </div>
-
-          <div style={{
-            borderTop: '1px solid #1a2740', paddingTop: '24px',
-            display: 'flex', flexWrap: 'wrap',
-            justifyContent: 'space-between',
-            alignItems: 'center', gap: '16px'
-          }}>
-            <p style={{ color: '#374151', fontSize: '12px' }}>
-              © 2026 GlobalHub. All rights reserved. Worldwide.
-            </p>
-            <div style={{ display: 'flex', gap: '20px' }}>
-              {[
-                { l: t.terms, h: '/terms' },
-                { l: t.privacy, h: '/privacy' },
-                { l: t.responsible, h: '/responsible-gaming' },
-                { l: 'FAQ', h: '/faq' },
-                { l: 'support', h: '/support' },
-              ].map(item => (
-                <Link key={item.l} href={item.h} style={{
-                  color: '#374151', fontSize: '12px',
-                  textDecoration: 'none'
-                }}>
-                  {item.l}
-                </Link>
-              ))}
-            </div>
+          <div style={{ color: '#4b5563', fontSize: '11px' }}>
+            © {new Date().getFullYear()} GlobalHub. All rights reserved.
           </div>
         </div>
       </footer>
