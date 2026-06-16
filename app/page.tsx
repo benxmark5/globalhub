@@ -881,7 +881,7 @@ export default function Home() {
         padding: '40px 16px',
         textAlign: 'center'
       }}>
-        <div style={{ maxWWidth: '1200px', margin: '0 auto' }}>
+        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
           <div style={{ fontWeight: 900, fontSize: '20px', marginBottom: '8px' }}>
             Global<span style={{ color: '#22c55e' }}>Hub</span>
           </div>
