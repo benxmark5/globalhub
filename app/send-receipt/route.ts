@@ -11,17 +11,15 @@ export async function POST(request: NextRequest) {
 
     const apiKey = process.env.RESEND_API_KEY;
     if (!apiKey) {
-      console.log('Resend not configured — skipping email');
-      return Response.json({ success: true, skipped: true });
+      console.error('❌ Critical: RESEND_API_KEY is missing from environment variables.');
+      return Response.json({ success: false, error: 'Email service unconfigured' }, { status: 500 });
     }
 
-    const fromEmail = process.env.EMAIL_FROM ||
-      'onboarding@resend.dev';
+    const fromEmail = process.env.EMAIL_FROM || 'onboarding@resend.dev';
 
     const signalEmoji = signalType === 'football' ? '⚽' : '✈️';
-    const signalName = signalType === 'football'
-      ? 'Football' : 'Aviator';
-    const totalSignals = signalsCount + (bonusSignals || 0);
+    const signalName = signalType === 'football' ? 'Football' : 'Aviator';
+    const totalSignals = Number(signalsCount || 0) + Number(bonusSignals || 0);
 
     const html = `
 <!DOCTYPE html>
@@ -30,21 +28,18 @@ export async function POST(request: NextRequest) {
 <body style="margin:0;padding:0;background:#0a1628;font-family:-apple-system,sans-serif;">
 <div style="max-width:600px;margin:0 auto;padding:32px 20px;">
 
-  <!-- Header -->
   <div style="text-align:center;margin-bottom:28px;">
     <div style="background:#0f1f33;border:1px solid #1a2740;border-radius:16px;padding:16px 24px;display:inline-block;">
       <span style="font-weight:900;font-size:22px;color:white;">GLOBAL<span style="color:#22c55e;">HUB</span></span>
     </div>
   </div>
 
-  <!-- Success Banner -->
   <div style="background:rgba(34,197,94,0.08);border:2px solid rgba(34,197,94,0.25);border-radius:16px;padding:28px;text-align:center;margin-bottom:20px;">
     <div style="font-size:52px;margin-bottom:12px;">✅</div>
     <h1 style="color:#22c55e;font-size:24px;font-weight:900;margin:0 0 8px;">Payment Successful!</h1>
     <p style="color:#86efac;font-size:15px;margin:0;">Your ${signalName} signals are unlocked and ready!</p>
   </div>
 
-  <!-- CTA Button -->
   <div style="text-align:center;margin-bottom:20px;">
     <a href="${signalsLink || appUrl}"
       style="display:inline-block;background:#22c55e;color:black;padding:16px 36px;border-radius:12px;font-weight:900;font-size:16px;text-decoration:none;text-transform:uppercase;">
@@ -55,7 +50,6 @@ export async function POST(request: NextRequest) {
     </p>
   </div>
 
-  <!-- Receipt -->
   <div style="background:#0f1f33;border:1px solid #1a2740;border-radius:16px;padding:22px;margin-bottom:20px;">
     <p style="color:#6b7280;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin:0 0 14px;">Payment Receipt</p>
     <table style="width:100%;border-collapse:collapse;">
@@ -81,7 +75,6 @@ export async function POST(request: NextRequest) {
     </table>
   </div>
 
-  <!-- Important Info -->
   <div style="background:rgba(251,191,36,0.06);border:1px solid rgba(251,191,36,0.2);border-radius:12px;padding:16px;margin-bottom:20px;text-align:center;">
     <p style="color:#fde68a;font-size:13px;margin:0;">
       ⏰ <strong>Your signals are valid for ${signalType === 'aviator' ? '2 hours' : '24 hours'}</strong> from purchase time.
@@ -89,7 +82,6 @@ export async function POST(request: NextRequest) {
     </p>
   </div>
 
-  <!-- Tips -->
   <div style="background:#0f1f33;border:1px solid #1a2740;border-radius:14px;padding:18px;margin-bottom:24px;">
     <p style="color:#6b7280;font-size:11px;font-weight:700;text-transform:uppercase;margin:0 0 12px;">Quick Tips</p>
     ${signalType === 'football' ? `
@@ -103,7 +95,6 @@ export async function POST(request: NextRequest) {
     `}
   </div>
 
-  <!-- Support -->
   <div style="text-align:center;margin-bottom:24px;">
     <p style="color:#6b7280;font-size:13px;margin:0 0 8px;">Issues? We respond within 2 hours.</p>
     <a href="mailto:support.globalhub.team@gmail.com" style="color:#22c55e;font-size:14px;font-weight:700;text-decoration:none;">
@@ -111,7 +102,6 @@ export async function POST(request: NextRequest) {
     </a>
   </div>
 
-  <!-- Footer -->
   <div style="border-top:1px solid #1a2740;padding-top:20px;text-align:center;">
     <p style="color:#374151;font-size:11px;margin:0 0 6px;">© 2026 GlobalHub. All rights reserved.</p>
     <p style="color:#374151;font-size:11px;margin:0;">
@@ -125,6 +115,22 @@ export async function POST(request: NextRequest) {
 </body>
 </html>`;
 
+    // STRATEGIC FIX: Auto-adjust payload criteria if using the default Resend sandbox domain
+    const isSandboxMode = fromEmail === 'onboarding@resend.dev';
+    
+    const formattedFrom = isSandboxMode 
+      ? 'onboarding@resend.dev' 
+      : `GlobalHub <${fromEmail}>`;
+
+    // In Sandbox Mode, emails to external users fail. Re-route them to your dashboard test recipient email profile.
+    const finalRecipient = isSandboxMode
+      ? 'support.globalhub.team@gmail.com' // Ensure this is the email you signed up to Resend with!
+      : email;
+
+    if (isSandboxMode) {
+      console.warn(`⚠️ API Route running in Sandbox Mode. Redirecting receipt from client [${email}] to verified owner [${finalRecipient}]`);
+    }
+
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
@@ -132,8 +138,8 @@ export async function POST(request: NextRequest) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: `GlobalHub <${fromEmail}>`,
-        to: [email],
+        from: formattedFrom,
+        to: [finalRecipient],
         subject: `✅ Payment Confirmed — ${planLabel} | GlobalHub`,
         html,
       }),
@@ -141,14 +147,14 @@ export async function POST(request: NextRequest) {
 
     const responseData = await res.json();
     if (!res.ok) {
-      console.error('Resend error:', responseData);
-      return Response.json({ success: false });
+      console.error('❌ Resend API dispatch failure logs:', responseData);
+      return Response.json({ success: false, error: responseData }, { status: res.status });
     }
 
-    return Response.json({ success: true, emailId: responseData.id });
+    return Response.json({ success: true, emailId: responseData.id, sandboxRedirect: isSandboxMode });
 
   } catch (error) {
-    console.error('Email error:', error);
+    console.error('❌ Internal Server Exception:', error);
     return Response.json({ error: String(error) }, { status: 500 });
   }
 }

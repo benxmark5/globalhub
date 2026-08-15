@@ -2,11 +2,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import WalletCard from '../components/WalletCard';
 import { supabase } from '../lib/supabase';
+import Image from 'next/image';
 import {
   Trophy, TrendingUp, Zap, LogOut,
   User, Clock, CheckCircle, ShoppingBag,
-  Camera, Sun, Moon, X, AlertTriangle
+  Camera, Sun, Moon, AlertTriangle
 } from 'lucide-react';
 
 type Purchase = {
@@ -30,11 +32,15 @@ export default function AccountPage() {
   } | null>(null);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [loading, setLoading] = useState(true);
-  const [darkMode, setDarkMode] = useState(true);
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    const savedMode = localStorage.getItem('darkMode');
+    return savedMode !== null ? savedMode === 'true' : true;
+  });
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [tab, setTab] = useState<'overview' | 'history'>('overview');
+  const [tab, setTab] = useState<'overview' | 'wallet' | 'history'>('overview');
 
   const bg = darkMode ? '#0a1628' : '#f0f4f8';
   const cardBg = darkMode ? '#0f1f33' : '#ffffff';
@@ -44,9 +50,6 @@ export default function AccountPage() {
   const mutedText = darkMode ? '#6b7280' : '#94a3b8';
 
   useEffect(() => {
-    const savedMode = localStorage.getItem('darkMode');
-    if (savedMode !== null) setDarkMode(savedMode === 'true');
-
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       const user = session?.user ?? null;
@@ -304,9 +307,12 @@ export default function AccountPage() {
                 onClick={() => fileRef.current?.click()}
               >
                 {avatarUrl ? (
-                  <img
+                  <Image
                     src={avatarUrl}
                     alt="Avatar"
+                    width={70}
+                    height={70}
+                    unoptimized
                     style={{
                       width: '100%', height: '100%',
                       objectFit: 'cover'
@@ -524,7 +530,7 @@ export default function AccountPage() {
           marginBottom: '20px',
           boxShadow: '0 4px 15px rgba(34,197,94,0.3)'
         }}>
-          🎯 Buy Today's Signals
+          🎯 Buy Today&apos;s Signals
         </Link>
 
         {/* Tabs */}
@@ -533,7 +539,7 @@ export default function AccountPage() {
           background: border, borderRadius: '12px',
           overflow: 'hidden', marginBottom: '16px'
         }}>
-          {(['overview', 'history'] as const).map(t => (
+          {(['overview', 'wallet', 'history'] as const).map(t => (
             <button
               key={t}
               type="button"
@@ -547,7 +553,7 @@ export default function AccountPage() {
                 cursor: 'pointer', touchAction: 'manipulation'
               }}
             >
-              {t === 'overview' ? '📊 Overview' : '📋 History'}
+              {t === 'overview' ? '📊 Overview' : t === 'wallet' ? '💰 Wallet' : '📋 History'}
             </button>
           ))}
         </div>
@@ -636,6 +642,11 @@ export default function AccountPage() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Wallet Tab */}
+        {tab === 'wallet' && user && (
+          <WalletCard userId={user.id} userEmail={user.email || ''} />
         )}
 
         {/* History Tab */}
