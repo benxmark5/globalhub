@@ -1,4 +1,4 @@
-export interface CurrencyInfo {
+﻿export interface CurrencyInfo {
   code: string;
   symbol: string;
   rate: number;
@@ -17,5 +17,5 @@ export function toLocalAmount(amount: number, currency = 'USD'): number {
 
 export function formatAmount(amount: number, currency = 'USD'): string {
   const curr = CURRENCY_MAP[currency] || CURRENCY_MAP.USD;
-  return `${curr.symbol}${toLocalAmount(amount, currency)}`;
+  return ${curr.symbol};
 }
