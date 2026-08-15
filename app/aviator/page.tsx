@@ -5,8 +5,8 @@ import {
   ArrowLeft, Zap, Lock, Eye,
   Clock, AlertTriangle, ShoppingCart
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
-import { useCart } from '../lib/cart';
+import { supabase } from '@/lib/supabase';
+import { useCart } from '@/lib/cart';
 
 type Signal = {
   id: string;

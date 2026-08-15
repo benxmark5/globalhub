@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import WalletCard from '../components/WalletCard';
-import { supabase } from '../lib/supabase';
+import { supabase } from '@/lib/supabase';
 import Image from 'next/image';
 import {
   Trophy, TrendingUp, Zap, LogOut,

@@ -8,9 +8,9 @@ import {
   Plus, Minus, Star, CreditCard,
   Wallet, RefreshCw, ChevronDown, ChevronUp
 } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
-import { useCurrency } from '../../lib/useCurrency';
-import { toLocalAmount, formatAmount } from '../../lib/currency';
+import { supabase } from '@/lib/supabase';
+import { useCurrency } from '@/lib/useCurrency';
+import { toLocalAmount, formatAmount } from '@/lib/currency';
 
 type Event = {
   id: string; title: string; subtitle: string;

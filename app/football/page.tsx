@@ -6,7 +6,7 @@ import {
   ArrowLeft, Lock, Eye,
   Trophy, RefreshCw, ShoppingCart
 } from 'lucide-react';
-import { useCart } from '../lib/cart';
+import { useCart } from '@/lib/cart';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,

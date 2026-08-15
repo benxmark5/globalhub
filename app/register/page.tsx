@@ -7,7 +7,7 @@ import {
   Trophy, Eye, EyeOff, CheckCircle,
   Check, X, Shield
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '@/lib/supabase';
 
 const getPasswordStrength = (password: string) => {
   const checks = {

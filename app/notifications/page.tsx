@@ -5,7 +5,7 @@ import {
   Bell, CheckCircle, ArrowLeft,
   DollarSign, ShoppingBag, AlertTriangle, X
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 
 type Notif = {

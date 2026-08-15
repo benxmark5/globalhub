@@ -10,8 +10,8 @@ import {
   HelpCircle, Shield, FileText, LogOut,
   X, ChevronRight, Star
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
-import { useCart } from '../lib/cart';
+import { supabase } from '@/lib/supabase';
+import { useCart } from '@/lib/cart';
 
 const MORE_ITEMS = [
   { icon: TrendingUp, label: 'Football Signals', href: '/football', color: '#22c55e' },

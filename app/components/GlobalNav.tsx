@@ -8,7 +8,7 @@ import {
   DollarSign, User, LogOut, HelpCircle,
   Shield, FileText, Heart, ShoppingCart, ShoppingBag
 } from 'lucide-react';
-import { useCart } from '../lib/cart';
+import { useCart } from '@/lib/cart';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,

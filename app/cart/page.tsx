@@ -6,10 +6,10 @@ import {
   ShoppingCart, Trash2, TrendingUp,
   Zap, ArrowRight, Trophy, Package
 } from 'lucide-react';
-import { useCart } from '../lib/cart';
-import { supabase } from '../lib/supabase';
-import { useCurrency } from '../lib/useCurrency';
-import { toLocalAmount, formatAmount } from '../lib/currency';
+import { useCart } from '@/lib/cart';
+import { supabase } from '@/lib/supabase';
+import { useCurrency } from '@/lib/useCurrency';
+import { toLocalAmount, formatAmount } from '@/lib/currency';
 
 export default function CartPage() {
   const { items, removeItem, clearCart, total, count } = useCart();

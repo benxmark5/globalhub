@@ -6,10 +6,10 @@ import {
   Trophy, ArrowLeft, CheckCircle,
   ShieldCheck, Zap, Lock, Globe, RefreshCw
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
-import { useCurrency } from '../lib/useCurrency';
+import { supabase } from '@/lib/supabase';
+import { useCurrency } from '@/lib/useCurrency';
 import CurrencySelector from '../components/CurrencySelector';
-import { toLocalAmount, formatAmount } from '../lib/currency';
+import { toLocalAmount, formatAmount } from '@/lib/currency';
 
 const footballPlans = [
   { games: 1,   price: 1.20,  label: '1 Game',    bonus: 0 },

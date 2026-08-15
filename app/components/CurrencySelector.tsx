@@ -1,6 +1,6 @@
 "use client";
 import { useState } from 'react';
-import { CURRENCY_MAP, CurrencyInfo } from '../lib/currency';
+import { CURRENCY_MAP, CurrencyInfo } from '@/lib/currency';
 import { Globe, ChevronDown, X, Search } from 'lucide-react';
 
 interface Props {

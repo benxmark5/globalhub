@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { CartProvider } from "./lib/cart";
+import { CartProvider } from "@/lib/cart";
 import ChatWidget from "./components/ChatWidget";
 import GlobalNav from "./components/GlobalNav";
 import VisitorTracker from "./components/VisitorTracker";

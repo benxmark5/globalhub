@@ -5,9 +5,9 @@ import {
   ArrowUpCircle, RefreshCw, Bell, X, CheckCircle,
   ChevronRight, Plus, Minus
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
-import { useCurrency } from '../lib/useCurrency';
-import { toLocalAmount, formatAmount } from '../lib/currency';
+import { supabase } from '@/lib/supabase';
+import { useCurrency } from '@/lib/useCurrency';
+import { toLocalAmount, formatAmount } from '@/lib/currency';
 
 type Wallet = {
   id: string; available_balance: number;

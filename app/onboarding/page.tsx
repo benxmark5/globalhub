@@ -7,7 +7,7 @@ import {
   User, Globe, Briefcase, Shield, CreditCard,
   FileText, AlertTriangle
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '@/lib/supabase';
 
 const STEPS = [
   { id: 1, label: 'Account',    icon: User },
