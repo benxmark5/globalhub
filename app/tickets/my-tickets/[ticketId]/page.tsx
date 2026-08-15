@@ -7,7 +7,7 @@ import {
   CheckCircle, XCircle, Clock,
   MapPin, Calendar, Shield
 } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '@/lib/supabase';
 
 type FullTicket = {
   ticket: {

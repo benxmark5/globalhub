@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Ticket, ArrowLeft, Calendar, MapPin, CheckCircle, RefreshCw } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '@/lib/supabase';
 
 type TicketData = {
   id: string; ticket_number: string;
