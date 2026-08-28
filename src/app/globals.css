@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: #0a0b0d;
+  --color-card: #16171a;
+}
+
+:root {
+  background-color: #0a0b0d;
+  color: white;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+}
