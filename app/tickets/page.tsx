@@ -141,7 +141,7 @@ export default function TicketsPage() {
           {SPORTS.map(s => (
             <button key={s} type="button" onClick={() => setSport(s)}
               style={{
-                padding: '8px 18px', borderRadius: '20px', border: 'none',
+                padding: '8px 18px', borderRadius: '20px',
                 background: sport === s ? '#fb923c' : '#0f1f33',
                 color: sport === s ? 'black' : '#9ca3af',
                 fontWeight: 700, fontSize: '13px', cursor: 'pointer',

@@ -15,7 +15,7 @@ export async function POST(req: NextRequest) {
       return Response.json({ success: false, message: 'Payment not confirmed' });
     }
 
-    const supabase = createClient(
+    const supabase: any = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_KEY!
     );
@@ -45,7 +45,20 @@ export async function POST(req: NextRequest) {
     const { default: issueTicketsFn } = { default: async () => {} };
 
     // Inline issue
-    const tickets = [];
+    const tickets: {
+  ticket_number: string;
+  order_id: string;
+  user_id: string;
+  event_id: string;
+  tier_id: string;
+  section: string;
+  row_number: string;
+  seat_number: string;
+  gate: string;
+  qr_data: string;
+  barcode_data: string;
+  status: string;
+}[] = [];
     for (let i = 0; i < order.quantity; i++) {
       const ticketSeq = Date.now() + i;
       const ticketNum = `GH-${new Date().getFullYear()}-${String(ticketSeq).slice(-6)}`;
@@ -86,3 +99,6 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: String(e) }, { status: 500 });
   }
 }
+
+
+

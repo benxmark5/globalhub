@@ -1,13 +1,12 @@
 "use client";
 import { useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { CheckCircle, XCircle, RefreshCw, Trophy } from 'lucide-react';
 
 export default function DepositVerifyPage() {
   const router = useRouter();
-  const params = useSearchParams();
-  const reference = params.get('reference') || params.get('trxref');
+  const [reference, setReference] = useState<string | null>(null);
   const [status, setStatus] = useState<'loading' | 'success' | 'failed'>('loading');
   const [amount, setAmount] = useState(0);
 
@@ -34,6 +33,13 @@ export default function DepositVerifyPage() {
     };
     verify();
   }, [reference]);
+
+  useEffect(() => {
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      setReference(sp.get('reference') || sp.get('trxref'));
+    } catch {}
+  }, []);
 
   return (
     <div style={{

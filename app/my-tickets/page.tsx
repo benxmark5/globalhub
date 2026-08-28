@@ -1,6 +1,7 @@
 "use client";
+export const dynamic = 'force-dynamic';
 import { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Ticket, ArrowLeft, Calendar, MapPin, CheckCircle, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -17,8 +18,7 @@ type TierData = { id: string; name: string; color: string; badge: string; };
 
 export default function MyTicketsPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const verifyRef = searchParams.get('verify');
+  const [verifyRef, setVerifyRef] = useState<string | null>(null);
   const [tickets, setTickets] = useState<TicketData[]>([]);
   const [events, setEvents] = useState<EventData[]>([]);
   const [tiers, setTiers] = useState<TierData[]>([]);
@@ -27,6 +27,12 @@ export default function MyTicketsPage() {
   const [user, setUser] = useState<{ id: string } | null>(null);
 
   useEffect(() => {
+    // Read search params client-side to avoid SSR prerender issues
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      setVerifyRef(sp.get('verify'));
+    } catch {}
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!session?.user) { router.push('/login'); return; }
       setUser(session.user);

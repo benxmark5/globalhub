@@ -400,7 +400,7 @@ export default function EventDetailPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             <button type="button" onClick={() => setPayMethod('paystack')}
               style={{
-                padding: '14px', borderRadius: '12px', border: 'none',
+                padding: '14px', borderRadius: '12px',
                 background: payMethod === 'paystack' ? 'rgba(34,197,94,0.1)' : '#0a1628',
                 border: `2px solid ${payMethod === 'paystack' ? '#22c55e' : '#1a2740'}`,
                 cursor: 'pointer', textAlign: 'left', touchAction: 'manipulation'
@@ -415,7 +415,7 @@ export default function EventDetailPage() {
             </button>
             <button type="button" onClick={() => canUseWallet && setPayMethod('wallet')}
               style={{
-                padding: '14px', borderRadius: '12px', border: 'none',
+                padding: '14px', borderRadius: '12px',
                 background: payMethod === 'wallet' ? 'rgba(96,165,250,0.1)' : '#0a1628',
                 border: `2px solid ${payMethod === 'wallet' ? '#60a5fa' : '#1a2740'}`,
                 cursor: canUseWallet ? 'pointer' : 'not-allowed',

@@ -86,7 +86,7 @@ export default function EventsPage() {
               onClick={() => setActiveTab(tab.id)}
               style={{
                 display: 'flex', alignItems: 'center', gap: '6px',
-                padding: '9px 16px', borderRadius: '20px', border: 'none',
+                padding: '9px 16px', borderRadius: '20px',
                 background: activeTab === tab.id ? '#22c55e' : '#0f1f33',
                 color: activeTab === tab.id ? 'black' : '#9ca3af',
                 fontWeight: 700, fontSize: '13px', cursor: 'pointer',
