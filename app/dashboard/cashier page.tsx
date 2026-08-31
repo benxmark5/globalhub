@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { Tabs } from '@/components/ui/Tabs';
@@ -11,7 +11,7 @@ import { ErrorState } from '@/components/empty-states/ErrorState';
 import { fetchWallet, fetchTransactions } from '@/lib/api/services';
 import type { Wallet, Transaction } from '@/types';
 
-export default function CashierPage() {
+function CashierContent() {
   const searchParams = useSearchParams();
   const defaultTab = searchParams.get('tab') || 'deposit';
   const { user } = useAuth();
@@ -117,5 +117,13 @@ export default function CashierPage() {
       {wallet && <BalanceCard {...wallet} />}
       <Tabs tabs={tabs} defaultTab={defaultTab} variant="underline" />
     </div>
+  );
+}
+
+export default function CashierPage() {
+  return (
+    <Suspense fallback={<div className="space-y-6 animate-fade-in"><SkeletonList count={5} /></div>}>
+      <CashierContent />
+    </Suspense>
   );
 }

@@ -11,7 +11,8 @@ export async function GET(req: NextRequest) {
 
   if (id) {
     const { data: event } = await supabase
-      .from('stadium_events').select('*').eq('id', id).single();
+      .from('stadium_events').select('*').eq('id', id).eq('is_published', true).single();
+    if (!event) return Response.json({ event: null, tiers: [] }, { status: 404 });
     const { data: tiers } = await supabase
       .from('ticket_tiers').select('*')
       .eq('event_id', id).eq('is_active', true)
