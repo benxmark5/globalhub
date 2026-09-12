@@ -41,20 +41,34 @@ export async function POST(req: Request) {
       const currency = sessionData.currency || 'KES';
       
       const metadata = sessionData.metadata || {}; 
-      const signalType = metadata.signal_type || 'aviator'; 
+      const signalType = metadata.signal_type || metadata.type || 'aviator'; 
       const planName = metadata.plan || 'Signal Package';
 
       console.log(`Verified payment from ${customerEmail} for ${currency} ${amountPaid}.`);
 
-      // 5. Update Customer profile on public side
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({ active_signals: true })
-        .eq('email', customerEmail);
+      // 5. Handle Instant Wallet Balance Top-Up vs Signal Package Update
+      if (signalType === 'deposit') {
+        // Instantly increment user wallet balance using Supabase RPC
+        const { error: balanceError } = await supabase.rpc('increment_balance', {
+          user_email: customerEmail,
+          amount_to_add: amountPaid
+        });
 
-      if (profileError) {
-        console.error('Error updating public client profile:', profileError);
-        throw profileError;
+        if (balanceError) {
+          console.error('Error updating user wallet balance:', balanceError);
+          throw balanceError;
+        }
+      } else {
+        // Update Customer profile on public side for active signals
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({ active_signals: true })
+          .eq('email', customerEmail);
+
+        if (profileError) {
+          console.error('Error updating public client profile:', profileError);
+          throw profileError;
+        }
       }
 
       // 6. Record the item directly into the 'purchases' table for Admin Dashboard metrics

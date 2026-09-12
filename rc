@@ -1,0 +1,37 @@
+[33mcommit 22d40d198cb5d8ecaf74364ff6b26b32f61324b1[m[33m ([m[1;32mbackup-2026-09-05[m[33m)[m
+Author: MARKBENX <benxmutaimark@gmail.com>
+Date:   Sat Sep 5 07:03:12 2026 +0300
+
+    backup: everything on disk before resetting to known-good state
+
+ app/api/crash-game/route.ts                 |   7 [32m+[m[31m-[m
+ app/api/loginpage.tsx                       |  57 [31m--[m
+ app/auth/callback/route.ts                  |  18 [31m-[m
+ app/auth/login/page.tsx                     |  78 [31m---[m
+ app/aviator/game/page.tsx                   | 358 [32m+++++++++++++[m
+ app/aviator/page.tsx                        | 641 [32m+++++[m[31m------------------[m
+ app/dashboard/homepage.tsx                  | 107 [31m----[m
+ app/globals.css                             | 119 [32m++[m[31m---[m
+ app/login/page.tsx                          | 348 [32m+++++[m[31m--------[m
+ app/register/page.tsx                       | 530 [32m++++++[m[31m-------------[m
+ components/AdvancedOddsNode.tsx             |   2 [32m+[m[31m-[m
+ components/AppShell.tsx                     |   2 [32m+[m[31m-[m
+ ersuserenterprise-public                    |  10 [32m+[m
+ lib/api/client.ts                           |   7 [32m+[m
+ lib/proxy.ts                                |  37 [32m++[m
+ lib/supabase.ts                             |  20 [32m+[m[31m-[m
+ middleware.ts                               |  38 [32m+[m[31m-[m
+ package.json                                |   6 [32m+[m[31m-[m
+ src/app/aviator/game/state/bet/route.ts     |  35 [32m++[m
+ src/app/aviator/game/state/cashout/route.ts |  51 [32m++[m
+ src/app/aviator/game/state/route.ts         |  68 [32m+++[m
+ src/app/aviator/page.tsx                    | 653 [32m+++++++++++[m[31m------------[m
+ src/app/aviator/replay/route.ts             |  44 [32m++[m
+ src/app/aviator/state/route.ts              |  42 [32m++[m
+ src/app/page.tsx                            | 775 [32m+++++++++++++[m[31m---------------[m
+ src/components/StatusBadge.tsx              |  22 [32m+[m
+ src/components/ui/SectionHeader.tsx         |  34 [32m++[m
+ src/components/ui/public/Footer.tsx         |  50 [32m++[m
+ src/components/ui/public/GlassCard.tsx      |  28 [32m+[m
+ src/utils/supabase/client.ts                |  13 [32m+[m[31m-[m
+ 30 files changed, 1962 insertions(+), 2238 deletions(-)

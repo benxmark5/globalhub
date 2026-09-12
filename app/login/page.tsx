@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { useState } from 'react';
 import Link from 'next/link';
@@ -34,7 +34,7 @@ export default function LoginPage() {
       
       if (authError) throw authError;
       
-      const destination = localStorage.getItem('redirectAfterLogin') || '/account';
+      const destination = localStorage.getItem('redirectAfterLogin') || '/aviator/game';
       localStorage.removeItem('redirectAfterLogin');
       router.push(destination);
     } catch (e: unknown) {
@@ -57,7 +57,7 @@ export default function LoginPage() {
     setError('');
     
     try {
-      const destination = localStorage.getItem('redirectAfterLogin') || '/account';
+      const destination = localStorage.getItem('redirectAfterLogin') || '/aviator/game';
       const { error: authError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -100,6 +100,7 @@ export default function LoginPage() {
             <span style={{ fontWeight: 900, fontSize: '24px', color: 'white' }}>
               GLOBAL<span style={{ color: '#22c55e' }}>HUB</span>
             </span>
+
           </Link>
           <h1 style={{ fontWeight: 900, fontSize: '28px', marginBottom: '8px', color: 'white' }}>
             Welcome Back
