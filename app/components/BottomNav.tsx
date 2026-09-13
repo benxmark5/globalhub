@@ -8,7 +8,7 @@ import {
   TrendingUp, Zap, DollarSign, BarChart3,
   Activity, Calendar, Bell, ShoppingBag,
   HelpCircle, Shield, FileText, LogOut,
-  X, ChevronRight, Star
+  X, ChevronRight, Star, Rocket
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useCart } from '@/lib/cart';
@@ -16,6 +16,7 @@ import { useCart } from '@/lib/cart';
 const MORE_ITEMS = [
   { icon: TrendingUp, label: 'Football Signals', href: '/football', color: '#22c55e' },
   { icon: Zap,        label: 'Aviator Signals',  href: '/aviator',  color: '#f87171' },
+  { icon: Rocket,     label: 'Aviator Game',     href: '/aviator/game', color: '#fbbf24' },
   { icon: DollarSign, label: 'Pricing',          href: '/pricing',  color: '#fbbf24' },
   { icon: BarChart3,  label: 'Statistics',       href: '/statistics',color: '#60a5fa'},
   { icon: Activity,   label: 'Live Scores',      href: '/scores',   color: '#34d399' },

@@ -1,4 +1,4 @@
-"use client";
+'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
@@ -19,20 +19,19 @@ export default function GlobalNav() {
   const router = useRouter();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [user, setUser] = useState<{
     email?: string;
     user_metadata?: { full_name?: string; avatar_url?: string }
   } | null>(null);
   const { count: cartCount } = useCart();
 
-  // ── Updated Auth State Sync ─────────────────
   useEffect(() => {
-    // Get initial session immediately
+    setMounted(true);
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
     });
 
-    // Listen for changes (login, logout, token refresh)
     const { data: { subscription } } =
       supabase.auth.onAuthStateChange((_event, session) => {
         setUser(session?.user ?? null);
@@ -41,8 +40,11 @@ export default function GlobalNav() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Close drawer on route change
   useEffect(() => { setOpen(false); }, [pathname]);
+
+  // Prevent hydration mismatch by defaulting client-dependent values during SSR
+  const currentCartCount = mounted ? cartCount : 0;
+  const currentUser = mounted ? user : null;
 
   const navLinks = [
     {
@@ -54,17 +56,20 @@ export default function GlobalNav() {
       href: '/aviator', color: '#f87171'
     },
     {
+      icon: Trophy, label: 'Play Aviator Game',
+      href: '/aviator/game', color: '#fbbf24'
+    },
+    {
       icon: DollarSign, label: 'Pricing',
       href: '/pricing', color: '#fbbf24'
     },
     {
-      icon: ShoppingCart, label: `Cart${cartCount > 0 ? ` (${cartCount})` : ''}`,
+      icon: ShoppingCart, label: `Cart${currentCartCount > 0 ? ` (${currentCartCount})` : ''}`,
       href: '/cart', color: '#60a5fa'
     },
   ];
 
-  // ── Updated Auth-Aware Account Links ────────
-  const accountLinks = user ? [
+  const accountLinks = currentUser ? [
     { icon: User,        label: 'My Account',  href: '/account',  color: '#a78bfa' },
     { icon: ShoppingBag, label: 'My Orders',   href: '/account?tab=history', color: '#fbbf24' },
   ] : [
@@ -84,7 +89,6 @@ export default function GlobalNav() {
 
   return (
     <>
-      {/* Hamburger Button */}
       <button
         type="button"
         onClick={() => setOpen(!open)}
@@ -107,8 +111,7 @@ export default function GlobalNav() {
           ? <X size={20} color="white" />
           : <Menu size={20} color="white" />
         }
-        {/* Cart badge */}
-        {!open && cartCount > 0 && (
+        {!open && currentCartCount > 0 && (
           <span style={{
             position: 'absolute', top: '-5px', right: '-5px',
             width: '18px', height: '18px',
@@ -117,12 +120,11 @@ export default function GlobalNav() {
             display: 'flex', alignItems: 'center',
             justifyContent: 'center'
           }}>
-            {cartCount}
+            {currentCartCount}
           </span>
         )}
       </button>
 
-      {/* Backdrop */}
       {open && (
         <div
           onClick={() => setOpen(false)}
@@ -134,7 +136,6 @@ export default function GlobalNav() {
         />
       )}
 
-      {/* Drawer */}
       <div style={{
         position: 'fixed', top: 0, right: 0,
         width: '280px', height: '100dvh',
@@ -147,7 +148,6 @@ export default function GlobalNav() {
         display: 'flex', flexDirection: 'column'
       }}>
 
-        {/* Drawer Header */}
         <div style={{
           padding: '20px 20px 16px',
           borderBottom: '1px solid #1a2740',
@@ -170,10 +170,10 @@ export default function GlobalNav() {
             }}>
               GLOBAL<span style={{ color: '#22c55e' }}>HUB</span>
             </span>
+
           </Link>
 
-          {/* User info if logged in */}
-          {user && (
+          {currentUser && (
             <div style={{
               background: '#0f1f33',
               border: '1px solid #1a2740',
@@ -189,8 +189,8 @@ export default function GlobalNav() {
                 display: 'flex', alignItems: 'center',
                 justifyContent: 'center'
               }}>
-                {user.user_metadata?.avatar_url ? (
-                  <img src={user.user_metadata.avatar_url}
+                {currentUser.user_metadata?.avatar_url ? (
+                  <img src={currentUser.user_metadata.avatar_url} alt="Avatar"
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : (
                   <User size={16} color="#22c55e" />
@@ -202,31 +202,29 @@ export default function GlobalNav() {
                   color: 'white', overflow: 'hidden',
                   textOverflow: 'ellipsis', whiteSpace: 'nowrap'
                 }}>
-                  {user.user_metadata?.full_name || 'My Account'}
+                  {currentUser.user_metadata?.full_name || 'My Account'}
                 </p>
                 <p style={{
                   color: '#6b7280', fontSize: '11px',
                   overflow: 'hidden', textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap'
                 }}>
-                  {user.email}
+                  {currentUser.email}
                 </p>
               </div>
             </div>
           )}
         </div>
 
-        {/* Nav Content */}
         <div style={{ flex: 1, padding: '16px 12px' }}>
 
-          {/* Signals */}
           <p style={{
             color: '#374151', fontSize: '10px',
             fontWeight: 700, textTransform: 'uppercase',
             letterSpacing: '0.1em', padding: '0 8px',
             marginBottom: '6px'
           }}>
-            Signals
+            Signals & Features
           </p>
           {navLinks.map(link => {
             const Icon = link.icon;
@@ -272,7 +270,6 @@ export default function GlobalNav() {
             margin: '12px 0'
           }} />
 
-          {/* Account */}
           <p style={{
             color: '#374151', fontSize: '10px',
             fontWeight: 700, textTransform: 'uppercase',
@@ -316,7 +313,6 @@ export default function GlobalNav() {
             margin: '12px 0'
           }} />
 
-          {/* Info Links */}
           <p style={{
             color: '#374151', fontSize: '10px',
             fontWeight: 700, textTransform: 'uppercase',
@@ -327,7 +323,6 @@ export default function GlobalNav() {
           </p>
           {infoLinks.map(link => {
             const Icon = link.icon;
-            // Highlight the provider link dynamically if it has a specific color
             const isProvider = link.href === '/become-provider';
             return (
               <Link key={link.href} href={link.href} style={{
@@ -348,12 +343,11 @@ export default function GlobalNav() {
           })}
         </div>
 
-        {/* Drawer Footer */}
         <div style={{
           padding: '16px 12px',
           borderTop: '1px solid #1a2740', flexShrink: 0
         }}>
-          {user ? (
+          {currentUser ? (
             <button
               type="button"
               onClick={async () => {

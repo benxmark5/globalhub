@@ -22,19 +22,20 @@ export default function LoginPage() {
       setError('Please fill in all fields');
       return;
     }
-    
+
     setLoading(true);
     setError('');
-    
+
     try {
       const { error: authError } = await supabase.auth.signInWithPassword({
         email: email.trim().toLowerCase(),
         password
       });
-      
+
       if (authError) throw authError;
-      
-      const destination = localStorage.getItem('redirectAfterLogin') || '/aviator/game';
+
+      // CHANGED: default destination is now `/` (homepage) instead of `/football`
+      const destination = localStorage.getItem('redirectAfterLogin') || '/';
       localStorage.removeItem('redirectAfterLogin');
       router.push(destination);
     } catch (e: unknown) {
@@ -55,16 +56,17 @@ export default function LoginPage() {
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
     setError('');
-    
+
     try {
-      const destination = localStorage.getItem('redirectAfterLogin') || '/aviator/game';
+      // CHANGED: default destination is now `/` (homepage) instead of `/football`
+      const destination = localStorage.getItem('redirectAfterLogin') || '/';
       const { error: authError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: `${window.location.origin}${destination}`,
         },
       });
-      
+
       if (authError) throw authError;
     } catch (e: unknown) {
       if (e instanceof Error) {
@@ -100,7 +102,6 @@ export default function LoginPage() {
             <span style={{ fontWeight: 900, fontSize: '24px', color: 'white' }}>
               GLOBAL<span style={{ color: '#22c55e' }}>HUB</span>
             </span>
-
           </Link>
           <h1 style={{ fontWeight: 900, fontSize: '28px', marginBottom: '8px', color: 'white' }}>
             Welcome Back
@@ -114,7 +115,7 @@ export default function LoginPage() {
           background: '#0f1f33', border: '1px solid #1a2740',
           borderRadius: '20px', padding: '28px 20px'
         }}>
-          
+
           <div style={{ marginBottom: '16px' }}>
             <label style={{
               display: 'block', color: '#9ca3af', fontSize: '12px',
