@@ -106,7 +106,12 @@ async function handleChargeSuccess(
   const userId = (metadata.userId as string) || '';
 
   // Convert to USD using platform_settings FX rate
-  const amountUSD = await toUSD(supabase, amountMinor, currency);
+    // Prefer the USD amount the user actually agreed to pay (stored at initiate time).
+  // Fall back to FX conversion only if metadata is missing (legacy payments).
+  const storedUSD = Number((metadata as Record<string, unknown>).amountUSD);
+  const amountUSD = Number.isFinite(storedUSD) && storedUSD > 0
+    ? Math.round(storedUSD * 100) / 100
+    : await toUSD(supabase, amountMinor, currency);
 
   console.log('[webhook] charge.success', { reference, purpose, userId, amountUSD, currency });
 
