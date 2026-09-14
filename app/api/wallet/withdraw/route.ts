@@ -1,86 +1,90 @@
+// app/api/wallet/withdraw/route.ts
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 import { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getAuthUser } from '@/lib/supabase-server';
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_SERVICE_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_KEY;
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId, amount, payoutMethod, payoutName, payoutIdentifier } = await req.json();
-
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!
-    );
-
-    const { data: wallet, error: walletError } = await supabase
-      .from('wallets')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
-
-    if (walletError || !wallet) {
-      return Response.json({ error: 'Wallet not found' }, { status: 404 });
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+      return Response.json({ error: 'Config missing' }, { status: 500 });
     }
 
-    const numericAmount = Number(amount);
+    // ── AUTH ──
+    const auth = await getAuthUser();
+    if (!auth.user) {
+      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userId = auth.user.id;
 
-    if (numericAmount < 5) {
-      return Response.json({ error: 'Minimum withdrawal is $5' }, { status: 400 });
+    const body = await req.json();
+    const { amount, payoutMethod, payoutName, payoutIdentifier } = body;
+
+    if (!amount || !payoutMethod || !payoutName || !payoutIdentifier) {
+      return Response.json(
+        { error: 'amount, payoutMethod, payoutName, payoutIdentifier required' },
+        { status: 400 }
+      );
     }
 
-    if (wallet.available_balance < numericAmount) {
-      return Response.json({ error: 'Insufficient balance' }, { status: 400 });
+    const amountUSD = Number(amount);
+    if (!Number.isFinite(amountUSD) || amountUSD <= 0) {
+      return Response.json({ error: 'Invalid amount' }, { status: 400 });
     }
 
-    const reference = `WD_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
-    await supabase.from('wallets').update({
-      available_balance: wallet.available_balance - numericAmount,
-      pending_balance: (wallet.pending_balance || 0) + numericAmount,
-      updated_at: new Date().toISOString(),
-    }).eq('user_id', userId);
-
-    await supabase.from('withdrawal_requests').insert({
-      user_id: userId,
-      wallet_id: wallet.id,
-      amount: numericAmount,
-      currency: 'USD',
-      payout_method: payoutMethod,
-      payout_name: payoutName,
-      payout_identifier: payoutIdentifier,
-      status: 'pending',
-      reference,
+    // ── Atomic RPC: locks wallet, checks balance, deducts, reserves ──
+    const { data: result, error: rpcError } = await supabase.rpc('create_withdrawal', {
+      p_user_id: userId,
+      p_amount_usd: amountUSD,
+      p_payout_method: payoutMethod,
+      p_payout_name: payoutName,
+      p_payout_identifier: payoutIdentifier,
     });
 
-    await supabase.from('wallet_transactions').insert({
-      user_id: userId,
-      wallet_id: wallet.id,
-      type: 'withdrawal',
-      amount: numericAmount,
-      currency: 'USD',
-      status: 'pending',
-      reference,
-      description: `withdrawal to ${payoutMethod}`,
-      metadata: { payoutMethod, payoutName, payoutIdentifier },
-    });
+    if (rpcError) {
+      console.error('[wallet/withdraw] rpc failed:', rpcError);
+      return Response.json({ error: 'Withdrawal could not be created' }, { status: 500 });
+    }
 
-    await supabase.from('notifications').insert({
-      user_id: userId,
-      type: 'withdrawal_submitted',
-      title: 'Withdrawal submitted',
-      message: `Your $${numericAmount} withdrawal request is pending approval`,
-      metadata: { reference, amount: numericAmount },
-    });
+    const r = result as {
+      ok: boolean;
+      error?: string;
+      reference?: string;
+      expires_in_seconds?: number;
+    } | null;
 
+    if (!r?.ok) {
+      return Response.json({ error: r?.error ?? 'Withdrawal rejected' }, { status: 400 });
+    }
+
+    // Best-effort notification (already inserted inside RPC for in-app)
     await supabase.from('activity_feed').insert({
       type: 'withdrawal_request',
       title: 'New withdrawal request',
-      description: `${numericAmount} via ${payoutMethod} - Reference: ${reference}`,
+      description: `$${amountUSD.toFixed(2)} via ${payoutMethod} — Ref: ${r.reference}`,
       country: 'US',
       country_flag: '💸',
-      metadata: { userId, amount: numericAmount, payoutMethod, reference },
+      metadata: { userId, amount: amountUSD, payoutMethod, reference: r.reference },
     });
 
-    return Response.json({ success: true, reference });
+    return Response.json({
+      success: true,
+      reference: r.reference,
+      expiresInSeconds: r.expires_in_seconds ?? 3600,
+    });
   } catch (error) {
-    return Response.json({ error: error instanceof Error ? error.message : 'Withdrawal failed' }, { status: 500 });
+    console.error('[wallet/withdraw] fatal:', error);
+    return Response.json(
+      { error: error instanceof Error ? error.message : 'Withdrawal failed' },
+      { status: 500 }
+    );
   }
 }

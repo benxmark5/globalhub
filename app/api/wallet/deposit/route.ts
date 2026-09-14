@@ -1,8 +1,10 @@
 // app/api/wallet/deposit/route.ts
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 import { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getAuthUser } from '@/lib/supabase-server';
 
 const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY;
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -17,11 +19,22 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: 'Payment configuration missing' }, { status: 500 });
     }
 
-    const body = await req.json();
-    const { userId, email, amount, currency, method } = body;
+    // ── AUTH ──
+    const auth = await getAuthUser();
+    if (!auth.user) {
+      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userId = auth.user.id;
+    const userEmail = auth.user.email;
+    if (!userEmail) {
+      return Response.json({ error: 'Missing email on account' }, { status: 400 });
+    }
 
-    if (!userId || !email || !amount) {
-      return Response.json({ error: 'userId, email, amount required' }, { status: 400 });
+    const body = await req.json();
+    const { amount, currency, method } = body;
+
+    if (!amount) {
+      return Response.json({ error: 'amount required' }, { status: 400 });
     }
 
     const amountUSD = Number(amount);
@@ -31,13 +44,11 @@ export async function POST(req: NextRequest) {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
-    // Read minimum from platform_settings
     const minDeposit = await getMinDeposit(supabase);
     if (amountUSD < minDeposit) {
       return Response.json({ error: `Minimum deposit is $${minDeposit}` }, { status: 400 });
     }
 
-    // FX rate from platform_settings
     const fxRate = await getKesRate(supabase);
     const amountKES = Math.ceil(amountUSD * fxRate);
     const paystackAmount = amountKES * 100;
@@ -46,13 +57,12 @@ export async function POST(req: NextRequest) {
     const callbackUrl = `${APP_URL}/wallet/deposit/verify?reference=${reference}`;
 
     const payload = {
-      email,
+      email: userEmail,
       amount: paystackAmount,
       currency: 'KES',
       reference,
       callback_url: callbackUrl,
       metadata: {
-        // ⚠️ This is what the webhook reads — must say 'wallet_deposit'
         purpose: 'wallet_deposit',
         userId,
         amountUSD,
@@ -79,7 +89,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Record pending deposit — this is our ledger BEFORE the money lands
+    // Pre-record as pending
     await supabase.from('wallet_transactions').insert({
       user_id: userId,
       type: 'deposit',
