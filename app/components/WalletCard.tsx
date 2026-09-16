@@ -1,35 +1,41 @@
 "use client";
 import { useState, useEffect, type ReactElement } from 'react';
 import {
-  DollarSign, TrendingUp, Clock, ArrowDownCircle,
-  ArrowUpCircle, RefreshCw, Bell, X, CheckCircle,
-  ChevronRight, Plus, Minus
+  DollarSign, TrendingUp, Clock, ArrowUpCircle,
+  RefreshCw, Bell, X, ChevronRight, Plus, Minus
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useCurrency } from '@/lib/useCurrency';
 import { toLocalAmount, formatAmount } from '@/lib/currency';
+import WalletWithdrawForm, { type WithdrawFormData } from './WalletWithdrawForm';
 
 type Wallet = {
-  id: string; available_balance: number;
-  pending_balance: number; total_deposited: number;
-  total_withdrawn: number; currency: string;
+  id: string;
+  available_balance: number;
+  pending_balance: number;
+  total_deposited: number;
+  total_withdrawn: number;
+  currency: string;
 };
 
 type Transaction = {
-  id: string; type: string; amount: number;
-  currency: string; status: string;
-  reference: string; description: string;
+  id: string;
+  type: string;
+  amount: number;
+  currency: string;
+  status: string;
+  reference: string;
+  description: string;
   created_at: string;
 };
 
 type Notification = {
-  id: string; type: string; title: string;
-  message: string; is_read: boolean; created_at: string;
-};
-
-type WithdrawForm = {
-  amount: string; payoutMethod: string;
-  payoutName: string; payoutIdentifier: string;
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  is_read: boolean;
+  created_at: string;
 };
 
 interface Props {
@@ -45,19 +51,18 @@ export default function WalletCard({ userId, userEmail }: Props): ReactElement {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'deposit' | 'withdraw' | 'history' | 'notifications'>('overview');
   const [depositAmount, setDepositAmount] = useState('');
-  const [depositMethod, setDepositMethod] = useState('card');
+    const [depositMethod, setDepositMethod] = useState('card');
   const [depositLoading, setDepositLoading] = useState(false);
   const [withdrawLoading, setWithdrawLoading] = useState(false);
-  const [withdrawForm, setWithdrawForm] = useState<WithdrawForm>({
-    amount: '', payoutMethod: '', payoutName: '', payoutIdentifier: ''
-  });
-  const [withdrawSuccess, setWithdrawSuccess] = useState(false);
   const [error, setError] = useState('');
+  const [greeting, setGreeting] = useState('');
+  const [userName, setUserName] = useState('');
 
+  // ── Load wallet data ──
   const load = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/wallet/balance?userId=${userId}`);
+      const res = await fetch(`/api/wallet/balance`);
       if (res.ok) {
         const data = await res.json();
         setWallet(data.wallet);
@@ -70,6 +75,7 @@ export default function WalletCard({ userId, userEmail }: Props): ReactElement {
 
   useEffect(() => {
     load();
+
     // Real-time wallet updates
     const channel = supabase
       .channel(`wallet-${userId}`)
@@ -82,12 +88,37 @@ export default function WalletCard({ userId, userEmail }: Props): ReactElement {
         filter: `user_id=eq.${userId}`
       }, () => load())
       .subscribe();
+
     return () => { supabase.removeChannel(channel); };
   }, [userId]);
 
+  // ── Time-based greeting ──
+  useEffect(() => {
+    const hour = new Date().getHours();
+    const g = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+    setGreeting(g);
+
+    (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        const metaName = user?.user_metadata?.full_name as string | undefined;
+        if (metaName) {
+          setUserName(metaName.split(' ')[0]);
+          return;
+        }
+        const emailName = userEmail?.split('@')[0] || '';
+        setUserName(emailName.charAt(0).toUpperCase() + emailName.slice(1));
+      } catch {
+        setUserName('');
+      }
+    })();
+  }, [userEmail]);
+
+  // ── Deposit ──
   const handleDeposit = async () => {
     if (!depositAmount || parseFloat(depositAmount) < 1) {
-      setError('Minimum deposit is $1'); return;
+      setError('Minimum deposit is $1');
+      return;
     }
     setDepositLoading(true);
     setError('');
@@ -96,7 +127,6 @@ export default function WalletCard({ userId, userEmail }: Props): ReactElement {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId, email: userEmail,
           amount: parseFloat(depositAmount),
           currency: currency.code,
           method: depositMethod,
@@ -108,19 +138,17 @@ export default function WalletCard({ userId, userEmail }: Props): ReactElement {
       } else {
         setError(data.error || 'Deposit failed');
       }
-    } catch { setError('Connection error'); }
+    } catch {
+      setError('Connection error');
+    }
     setDepositLoading(false);
   };
 
-  const handleWithdraw = async () => {
-    if (!withdrawForm.amount || parseFloat(withdrawForm.amount) < 5) {
-      setError('Minimum withdrawal is $5'); return;
-    }
-    if (!withdrawForm.payoutMethod || !withdrawForm.payoutName || !withdrawForm.payoutIdentifier) {
-      setError('Please fill all payout details'); return;
-    }
-    if (!wallet || parseFloat(withdrawForm.amount) > wallet.available_balance) {
-      setError('Insufficient balance'); return;
+  // ── Withdraw (called by WalletWithdrawForm) ──
+  const handleWithdraw = async (formData: WithdrawFormData) => {
+    if (!wallet || parseFloat(formData.amount) > wallet.available_balance) {
+      setError('Insufficient balance');
+      return { success: false };
     }
     setWithdrawLoading(true);
     setError('');
@@ -128,20 +156,35 @@ export default function WalletCard({ userId, userEmail }: Props): ReactElement {
       const res = await fetch('/api/wallet/withdraw', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, ...withdrawForm, amount: parseFloat(withdrawForm.amount) }),
+        body: JSON.stringify({
+          amount: parseFloat(formData.amount),
+          payoutMethod: formData.payoutMethod,
+          payoutName: formData.payoutName,
+          payoutIdentifier: formData.payoutIdentifier,
+          payoutExtra: formData.payoutExtra || null,
+        }),
       });
       const data = await res.json();
       if (data.success) {
-        setWithdrawSuccess(true);
-        setWithdrawForm({ amount: '', payoutMethod: '', payoutName: '', payoutIdentifier: '' });
         load();
-      } else {
-        setError(data.error || 'Withdrawal failed');
+        setWithdrawLoading(false);
+        return {
+          success: true,
+          reference: data.reference as string | undefined,
+          expiresInSeconds: data.expiresInSeconds as number | undefined,
+        };
       }
-    } catch { setError('Connection error'); }
-    setWithdrawLoading(false);
+      setError(data.error || 'Withdrawal failed');
+      setWithdrawLoading(false);
+      return { success: false };
+    } catch {
+      setError('Connection error');
+      setWithdrawLoading(false);
+      return { success: false };
+    }
   };
 
+  // ── Notifications ──
   const markAllRead = async () => {
     await fetch('/api/wallet/notifications/read', {
       method: 'POST',
@@ -151,21 +194,19 @@ export default function WalletCard({ userId, userEmail }: Props): ReactElement {
     setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
   };
 
-  const txIcon = (type: string) =>
-    type === 'deposit' ? '+' : type === 'purchase' ? '🛒' : '−';
-
+  // ── Helpers ──
   const txColor = (type: string, status: string) =>
     status === 'failed' || status === 'rejected' ? '#f87171'
-    : type === 'deposit' ? '#22c55e'
-    : '#f87171';
+      : type === 'deposit' ? '#22c55e'
+        : '#f87171';
 
   const statusBadge = (status: string) => ({
     background: status === 'completed' ? 'rgba(34,197,94,0.1)'
       : status === 'pending' ? 'rgba(251,191,36,0.1)'
-      : 'rgba(239,68,68,0.1)',
+        : 'rgba(239,68,68,0.1)',
     color: status === 'completed' ? '#22c55e'
       : status === 'pending' ? '#fbbf24'
-      : '#f87171',
+        : '#f87171',
   });
 
   const unread = notifications.filter(n => !n.is_read).length;
@@ -175,24 +216,42 @@ export default function WalletCard({ userId, userEmail }: Props): ReactElement {
   const localPending = toLocalAmount(pending, currency);
 
   const inputSt = {
-    width: '100%', background: '#060f1e',
-    border: '1.5px solid #1a2740', borderRadius: '10px',
-    padding: '12px 14px', color: 'white', fontSize: '14px',
-    outline: 'none', boxSizing: 'border-box' as const,
+    width: '100%',
+    background: '#060f1e',
+    border: '1.5px solid #1a2740',
+    borderRadius: '10px',
+    padding: '12px 14px',
+    color: 'white',
+    fontSize: '14px',
+    outline: 'none',
+    boxSizing: 'border-box' as const,
   };
 
   return (
     <div style={{
-      background: '#0f1f33', border: '1px solid #1a2740',
-      borderRadius: '20px', overflow: 'hidden'
+      background: '#0f1f33',
+      border: '1px solid #1a2740',
+      borderRadius: '20px',
+      overflow: 'hidden',
     }}>
 
-      {/* ── Header ── */}
+      {/* ── HEADER ── */}
       <div style={{
         background: 'linear-gradient(135deg, #0a1f12 0%, #0f1f33 100%)',
         padding: '20px',
-        borderBottom: '1px solid #1a2740'
+        borderBottom: '1px solid #1a2740',
       }}>
+        {greeting && (
+          <div style={{ marginBottom: '14px' }}>
+            <p style={{ color: '#9ca3af', fontSize: '13px', fontWeight: 500 }}>
+              {greeting}{userName ? `, ${userName}` : ''} 👋
+            </p>
+            <p style={{ color: '#4b5563', fontSize: '11px', marginTop: '2px' }}>
+              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+            </p>
+          </div>
+        )}
+
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
           <div>
             <p style={{ color: '#6b7280', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '6px' }}>
@@ -224,7 +283,6 @@ export default function WalletCard({ userId, userEmail }: Props): ReactElement {
           </div>
         </div>
 
-        {/* Pending balance */}
         {pending > 0 && (
           <div style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.15)', borderRadius: '10px', padding: '10px 14px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -237,7 +295,6 @@ export default function WalletCard({ userId, userEmail }: Props): ReactElement {
           </div>
         )}
 
-        {/* Action buttons */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
           <button type="button" onClick={() => { setActiveTab('deposit'); setError(''); }} style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
@@ -246,7 +303,7 @@ export default function WalletCard({ userId, userEmail }: Props): ReactElement {
           }}>
             <Plus size={16} /> Deposit
           </button>
-          <button type="button" onClick={() => { setActiveTab('withdraw'); setError(''); setWithdrawSuccess(false); }} style={{
+          <button type="button" onClick={() => { setActiveTab('withdraw'); setError(''); }} style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
             background: '#0a1628', color: 'white', border: '1px solid #1a2740', borderRadius: '11px',
             padding: '13px', fontWeight: 900, fontSize: '14px', cursor: 'pointer', touchAction: 'manipulation'
@@ -256,11 +313,11 @@ export default function WalletCard({ userId, userEmail }: Props): ReactElement {
         </div>
       </div>
 
-      {/* ── Tabs ── */}
+      {/* ── TABS ── */}
       <div style={{ display: 'flex', gap: '1px', background: '#1a2740', borderBottom: '1px solid #1a2740' }}>
         {(['overview', 'deposit', 'withdraw', 'history'] as const).map(tab => (
           <button key={tab} type="button"
-            onClick={() => { setActiveTab(tab); setError(''); setWithdrawSuccess(false); }}
+            onClick={() => { setActiveTab(tab); setError(''); }}
             style={{
               flex: 1, padding: '10px 4px', border: 'none',
               background: activeTab === tab ? '#0f1f33' : '#060f1e',
@@ -275,16 +332,8 @@ export default function WalletCard({ userId, userEmail }: Props): ReactElement {
         ))}
       </div>
 
-      {/* ── Content ── */}
+      {/* ── CONTENT ── */}
       <div style={{ padding: '18px' }}>
-
-        {/* Error */}
-        {error && (
-          <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '10px', padding: '12px', marginBottom: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <p style={{ color: '#f87171', fontSize: '13px' }}>⚠️ {error}</p>
-            <button type="button" onClick={() => setError('')} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer' }}><X size={14} /></button>
-          </div>
-        )}
 
         {/* ── OVERVIEW ── */}
         {activeTab === 'overview' && (
@@ -307,7 +356,6 @@ export default function WalletCard({ userId, userEmail }: Props): ReactElement {
               })}
             </div>
 
-            {/* Recent transactions */}
             <p style={{ color: '#6b7280', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '10px' }}>
               Recent Activity
             </p>
@@ -377,11 +425,9 @@ export default function WalletCard({ userId, userEmail }: Props): ReactElement {
                 Payment Method
               </label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                {[
-                  { id: 'card', label: '💳 Card', sub: 'Visa / Mastercard' },
-                  { id: 'mpesa', label: '📱 M-Pesa', sub: 'Mobile Money' },
-                  { id: 'bank', label: '🏦 Bank Transfer', sub: 'Direct Transfer' },
-                  { id: 'ussd', label: '📟 USSD', sub: 'Quick Pay' },
+                                {[
+                  { id: 'card',   label: '💳 Card / Bank',  sub: 'Visa, Mastercard, Bank' },
+                  { id: 'paypal', label: '💙 PayPal',       sub: 'Pay via PayPal' },
                 ].map(m => (
                   <button key={m.id} type="button" onClick={() => setDepositMethod(m.id)}
                     style={{ padding: '12px', background: depositMethod === m.id ? 'rgba(34,197,94,0.1)' : '#060f1e', border: `1.5px solid ${depositMethod === m.id ? '#22c55e' : '#1a2740'}`, borderRadius: '10px', cursor: 'pointer', textAlign: 'left', touchAction: 'manipulation' }}>
@@ -391,6 +437,13 @@ export default function WalletCard({ userId, userEmail }: Props): ReactElement {
                 ))}
               </div>
             </div>
+
+            {error && (
+              <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '10px', padding: '12px', marginBottom: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <p style={{ color: '#f87171', fontSize: '13px' }}>⚠️ {error}</p>
+                <button type="button" onClick={() => setError('')} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer' }}><X size={14} /></button>
+              </div>
+            )}
 
             <button type="button" onClick={handleDeposit} disabled={depositLoading || !depositAmount}
               style={{ width: '100%', background: !depositAmount || depositLoading ? '#1a2740' : 'linear-gradient(135deg,#22c55e,#16a34a)', color: !depositAmount || depositLoading ? '#374151' : 'black', border: 'none', borderRadius: '12px', padding: '16px', fontWeight: 900, fontSize: '16px', cursor: depositLoading || !depositAmount ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', boxShadow: !depositAmount ? 'none' : '0 6px 20px rgba(34,197,94,0.25)', touchAction: 'manipulation' }}>
@@ -405,89 +458,13 @@ export default function WalletCard({ userId, userEmail }: Props): ReactElement {
 
         {/* ── WITHDRAW ── */}
         {activeTab === 'withdraw' && (
-          <div>
-            {withdrawSuccess ? (
-              <div style={{ textAlign: 'center', padding: '20px' }}>
-                <CheckCircle size={48} color="#22c55e" style={{ margin: '0 auto 16px' }} />
-                <h3 style={{ fontWeight: 900, fontSize: '20px', marginBottom: '10px' }}>Request Submitted!</h3>
-                <p style={{ color: '#9ca3af', fontSize: '14px', lineHeight: 1.6, marginBottom: '20px' }}>
-                  Your withdrawal request is pending admin review.
-                  You'll be notified once it's approved (usually within 24 hours).
-                </p>
-                <button type="button" onClick={() => { setWithdrawSuccess(false); setActiveTab('history'); }}
-                  style={{ background: '#22c55e', color: 'black', border: 'none', borderRadius: '10px', padding: '12px 24px', fontWeight: 900, cursor: 'pointer', touchAction: 'manipulation' }}>
-                  View Transaction History
-                </button>
-              </div>
-            ) : (
-              <>
-                <div style={{ background: 'rgba(251,191,36,0.06)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: '10px', padding: '12px', marginBottom: '18px', display: 'flex', gap: '10px' }}>
-                  <Clock size={16} color="#fbbf24" style={{ flexShrink: 0, marginTop: '1px' }} />
-                  <p style={{ color: '#fde68a', fontSize: '13px', lineHeight: 1.6 }}>
-                    All withdrawals require admin approval. Available: <strong style={{ color: 'white' }}>${bal.toFixed(2)}</strong>
-                  </p>
-                </div>
-
-                <div style={{ marginBottom: '14px' }}>
-                  <label style={{ display: 'block', color: '#9ca3af', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '7px' }}>Amount (USD)</label>
-                  <div style={{ position: 'relative' }}>
-                    <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#f87171', fontWeight: 900 }}>$</span>
-                    <input type="number" min="5" max={bal} step="0.01"
-                      value={withdrawForm.amount}
-                      onChange={e => setWithdrawForm(p => ({ ...p, amount: e.target.value }))}
-                      placeholder="Minimum $5"
-                      style={{ ...inputSt, paddingLeft: '30px', fontSize: '16px', fontWeight: 900, fontFamily: 'monospace' }} />
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: '14px' }}>
-                  <label style={{ display: 'block', color: '#9ca3af', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '7px' }}>Payout Method</label>
-                  <select value={withdrawForm.payoutMethod}
-                    onChange={e => setWithdrawForm(p => ({ ...p, payoutMethod: e.target.value }))}
-                    style={inputSt}>
-                    <option value="">Select method...</option>
-                    <option value="bank_transfer">🏦 Bank Transfer</option>
-                    <option value="mpesa">📱 M-Pesa</option>
-                    <option value="paypal">💙 PayPal</option>
-                    <option value="wise">🌍 Wise (TransferWise)</option>
-                    <option value="binance_pay">₿ Binance Pay</option>
-                    <option value="usdt">💎 USDT (TRC20/ERC20)</option>
-                    <option value="wave">🌊 Wave</option>
-                    <option value="airtel_money">📱 Airtel Money</option>
-                    <option value="mtn_mobile">📱 MTN Mobile Money</option>
-                    <option value="western_union">🏢 Western Union</option>
-                  </select>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
-                  <div>
-                    <label style={{ display: 'block', color: '#9ca3af', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '7px' }}>Account Name</label>
-                    <input type="text" value={withdrawForm.payoutName}
-                      onChange={e => setWithdrawForm(p => ({ ...p, payoutName: e.target.value }))}
-                      placeholder="Full name on account"
-                      style={inputSt} />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', color: '#9ca3af', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', marginBottom: '7px' }}>
-                      {withdrawForm.payoutMethod === 'paypal' ? 'PayPal Email' : 'Account / Phone / ID'}
-                    </label>
-                    <input type="text" value={withdrawForm.payoutIdentifier}
-                      onChange={e => setWithdrawForm(p => ({ ...p, payoutIdentifier: e.target.value }))}
-                      placeholder={withdrawForm.payoutMethod === 'paypal' ? 'email@paypal.com' : '+254700000000'}
-                      style={inputSt} />
-                  </div>
-                </div>
-
-                <button type="button" onClick={handleWithdraw} disabled={withdrawLoading}
-                  style={{ width: '100%', background: withdrawLoading ? '#1a2740' : '#0a1628', color: withdrawLoading ? '#374151' : 'white', border: '2px solid #1a2740', borderRadius: '12px', padding: '15px', fontWeight: 900, fontSize: '15px', cursor: withdrawLoading ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', touchAction: 'manipulation' }}>
-                  {withdrawLoading ? <><RefreshCw size={16} style={{ animation: 'spin 1s linear infinite' }} /> Submitting...</> : '→ Submit Withdrawal Request'}
-                </button>
-                <p style={{ color: '#374151', fontSize: '11px', textAlign: 'center', marginTop: '8px' }}>
-                  Requests reviewed within 24 hours · All amounts in USD
-                </p>
-              </>
-            )}
-          </div>
+          <WalletWithdrawForm
+            availableBalance={wallet?.available_balance || 0}
+            submitting={withdrawLoading}
+            error={error}
+            onClearError={() => setError('')}
+            onSubmit={handleWithdraw}
+          />
         )}
 
         {/* ── HISTORY ── */}
