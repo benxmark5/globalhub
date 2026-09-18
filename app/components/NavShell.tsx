@@ -5,6 +5,7 @@ import { useState, useEffect, type ReactElement } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { useCart } from '@/lib/cart';
 import {
   Home, ShoppingCart, Gamepad2, HelpCircle, User as UserIcon,
   Menu, X, LogOut, ChevronLeft, ChevronRight,
@@ -65,6 +66,7 @@ export default function NavShell({ user }: Props): ReactElement {
   const [isDesktop, setIsDesktop] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { count: cartCount } = useCart();
 
   useEffect(() => {
     const check = () => setIsDesktop(window.innerWidth >= 1024);
@@ -237,10 +239,10 @@ export default function NavShell({ user }: Props): ReactElement {
               {...link}
               active={isActive(link.href)}
               showLabel={showLabels}
+              badge={link.href === '/marketplace' && cartCount > 0 ? cartCount : undefined}
             />
           ))}
 
-          {/* Divider */}
           <Divider />
 
           {/* Secondary */}
@@ -253,13 +255,9 @@ export default function NavShell({ user }: Props): ReactElement {
             />
           ))}
 
-          {/* Divider */}
           <Divider />
 
-          {/* Account section — always show label even when collapsed, as small heading */}
-          {showLabels && (
-            <SectionLabel>Account</SectionLabel>
-          )}
+          {showLabels && <SectionLabel>Account</SectionLabel>}
           {SIDEBAR_ACCOUNT.map((link) => (
             <NavLink
               key={link.href}
@@ -269,7 +267,6 @@ export default function NavShell({ user }: Props): ReactElement {
             />
           ))}
 
-          {/* Legal — mobile only shows in overlay; desktop hidden when collapsed */}
           {showLabels && (
             <>
               <Divider />
@@ -329,13 +326,7 @@ export default function NavShell({ user }: Props): ReactElement {
             >
               <LogOut size={16} color={c.danger} />
               {showLabels && (
-                <span
-                  style={{
-                    color: c.danger,
-                    fontSize: f.sm,
-                    fontWeight: 700,
-                  }}
-                >
+                <span style={{ color: c.danger, fontSize: f.sm, fontWeight: 700 }}>
                   Logout
                 </span>
               )}
@@ -363,7 +354,6 @@ export default function NavShell({ user }: Props): ReactElement {
             </Link>
           )}
 
-          {/* Desktop collapse toggle */}
           {!isMobile && (
             <button
               type="button"
@@ -401,9 +391,7 @@ export default function NavShell({ user }: Props): ReactElement {
 
   return (
     <>
-      {/* ──────────────────────────────────────────── */}
-      {/* DESKTOP SIDEBAR                              */}
-      {/* ──────────────────────────────────────────── */}
+      {/* DESKTOP SIDEBAR */}
       {isDesktop && (
         <>
           <aside
@@ -435,9 +423,7 @@ export default function NavShell({ user }: Props): ReactElement {
         </>
       )}
 
-      {/* ──────────────────────────────────────────── */}
-      {/* MOBILE TOP BAR                               */}
-      {/* ──────────────────────────────────────────── */}
+      {/* MOBILE TOP BAR */}
       {!isDesktop && (
         <>
           <header
@@ -518,9 +504,7 @@ export default function NavShell({ user }: Props): ReactElement {
         </>
       )}
 
-      {/* ──────────────────────────────────────────── */}
-      {/* MOBILE SIDEBAR OVERLAY                       */}
-      {/* ──────────────────────────────────────────── */}
+      {/* MOBILE SIDEBAR OVERLAY */}
       {!isDesktop && mobileOpen && (
         <>
           <div
@@ -578,9 +562,7 @@ export default function NavShell({ user }: Props): ReactElement {
         </>
       )}
 
-      {/* ──────────────────────────────────────────── */}
-      {/* MOBILE BOTTOM NAV                            */}
-      {/* ──────────────────────────────────────────── */}
+      {/* MOBILE BOTTOM NAV */}
       {!isDesktop && (
         <>
           <nav
@@ -603,6 +585,7 @@ export default function NavShell({ user }: Props): ReactElement {
             {BOTTOM_NAV.map((item) => {
               const Icon = item.icon;
               const active = isActive(item.href);
+              const showBadge = item.href === '/marketplace' && cartCount > 0;
               return (
                 <Link
                   key={item.href}
@@ -619,7 +602,28 @@ export default function NavShell({ user }: Props): ReactElement {
                     position: 'relative',
                   }}
                 >
-                  <Icon size={21} color={active ? c.brand : c.textDim} />
+                  <div style={{ position: 'relative' }}>
+                    <Icon size={21} color={active ? c.brand : c.textDim} />
+                    {showBadge && (
+                      <span
+                        style={{
+                          position: 'absolute',
+                          top: -6,
+                          right: -8,
+                          background: c.brand,
+                          color: '#000',
+                          fontSize: 9,
+                          fontWeight: 900,
+                          borderRadius: 10,
+                          padding: '1px 5px',
+                          minWidth: 15,
+                          textAlign: 'center',
+                        }}
+                      >
+                        {cartCount}
+                      </span>
+                    )}
+                  </div>
                   <span
                     style={{
                       fontSize: 10,
@@ -671,12 +675,14 @@ function NavLink({
   href,
   active,
   showLabel,
+  badge,
 }: {
   icon: React.ComponentType<{ size?: number; color?: string }>;
   label: string;
   href: string;
   active: boolean;
   showLabel: boolean;
+  badge?: number;
 }): ReactElement {
   return (
     <Link
@@ -703,9 +709,29 @@ function NavLink({
             fontSize: f.sm,
             fontWeight: active ? 700 : 500,
             letterSpacing: '-0.01em',
+            display: 'flex',
+            alignItems: 'center',
+            gap: s[2],
+            flex: 1,
           }}
         >
           {label}
+          {badge !== undefined && badge > 0 && (
+            <span
+              style={{
+                background: c.brand,
+                color: '#000',
+                fontSize: 10,
+                fontWeight: 900,
+                borderRadius: 10,
+                padding: '1px 7px',
+                minWidth: 18,
+                textAlign: 'center',
+              }}
+            >
+              {badge}
+            </span>
+          )}
         </span>
       )}
       {active && !showLabel && (
