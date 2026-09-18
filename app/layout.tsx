@@ -1,5 +1,7 @@
+// app/layout.tsx
 import type { Metadata } from "next";
 import "./globals.css";
+import "../lib/theme.css";
 import { CartProvider } from "@/lib/cart";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
@@ -41,8 +43,24 @@ export default async function RootLayout({
 }: { children: React.ReactNode }) {
   const user = await getCurrentUser();
 
+  // Inline script to set data-theme BEFORE React hydrates (prevents flash)
+  const themeScript = `
+    (function() {
+      try {
+        var t = localStorage.getItem('gh_theme');
+        if (t !== 'light' && t !== 'dark') t = 'dark';
+        document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  `;
+
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body>
         <CartProvider>
           <NavShell user={user} />

@@ -1,0 +1,180 @@
+/* app/landing.css
+ * Landing-page-scoped styles.
+ * Everything prefixed with .landing-* to avoid collisions.
+ */
+
+/* ── Reveal animation ── */
+.landing-reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.7s cubic-bezier(0.4, 0, 0.2, 1),
+              transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: opacity, transform;
+}
+.landing-reveal.landing-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── Hero particles ── */
+.landing-particle {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  background: rgba(34, 197, 94, 0.6);
+  border-radius: 50%;
+  pointer-events: none;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
+  animation: landingFloatUp linear infinite;
+}
+
+@keyframes landingFloatUp {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0;
+  }
+  10% { opacity: 0.9; }
+  90% { opacity: 0.6; }
+  100% {
+    transform: translate3d(20px, -100vh, 0) scale(0.6);
+    opacity: 0;
+  }
+}
+
+/* ── Hero gradient pulse ── */
+.landing-hero-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 20% 20%, rgba(34, 197, 94, 0.10) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 80%, rgba(99, 102, 241, 0.10) 0%, transparent 60%);
+  animation: landingGlowPulse 12s ease-in-out infinite;
+}
+
+@keyframes landingGlowPulse {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
+
+/* ── Grid overlay (subtle tech feel) ── */
+.landing-hero-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 60px 60px;
+  mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+}
+
+/* ── Marquee for trust bar ── */
+.landing-marquee {
+  overflow: hidden;
+  position: relative;
+}
+.landing-marquee-track {
+  display: flex;
+  gap: 48px;
+  animation: landingMarquee 40s linear infinite;
+  width: max-content;
+}
+@keyframes landingMarquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+/* ── Hover lift for cards ── */
+.landing-card-hover {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 0.3s ease,
+              box-shadow 0.3s ease;
+}
+.landing-card-hover:hover {
+  transform: translateY(-4px);
+  border-color: rgba(34, 197, 94, 0.35);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Button hover ── */
+.landing-btn {
+  transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+.landing-btn:hover {
+  transform: translateY(-1px);
+}
+.landing-btn:active {
+  transform: translateY(0);
+}
+
+/* ── Responsive typography ── */
+.landing-h1 {
+  font-size: clamp(2rem, 6vw, 4rem);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  font-weight: 900;
+}
+.landing-h2 {
+  font-size: clamp(1.5rem, 4vw, 2.5rem);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-weight: 900;
+}
+.landing-h3 {
+  font-size: clamp(1.125rem, 2.5vw, 1.5rem);
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  font-weight: 800;
+}
+.landing-body {
+  font-size: clamp(0.9375rem, 1.5vw, 1.0625rem);
+  line-height: 1.6;
+}
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .landing-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .landing-particle {
+    animation: none;
+    opacity: 0;
+  }
+  .landing-hero-glow {
+    animation: none;
+  }
+  .landing-marquee-track {
+    animation: none;
+  }
+  .landing-card-hover:hover,
+  .landing-btn:hover,
+  .landing-btn:active {
+    transform: none;
+  }
+}
+/* ── Light mode overrides for landing page ── */
+[data-theme="light"] {
+  /* Hero */
+  --hero-bg: radial-gradient(ellipse at top, #F8FAFC 0%, #FFFFFF 70%);
+}
+
+[data-theme="light"] .landing-particle {
+  background: rgba(34, 197, 94, 0.7);
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.4);
+}
+
+[data-theme="light"] .landing-hero-glow {
+  background:
+    radial-gradient(ellipse at 20% 20%, rgba(34, 197, 94, 0.08) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 80%, rgba(99, 102, 241, 0.06) 0%, transparent 60%);
+}
+
+[data-theme="light"] .landing-hero-grid {
+  background-image:
+    linear-gradient(rgba(15, 23, 42, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.03) 1px, transparent 1px);
+}

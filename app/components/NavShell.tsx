@@ -12,6 +12,7 @@ import {
   Rocket, Wallet, Bell, Ticket, Settings, FileText, Shield, Heart,
 } from 'lucide-react';
 import { c, s, r, f, sh, t } from '@/lib/design';
+import ThemeToggle from './ThemeToggle';
 
 // ─────────────────────────────────────────────────────────
 // Nav config
@@ -354,6 +355,10 @@ export default function NavShell({ user }: Props): ReactElement {
             </Link>
           )}
 
+                   {/* Theme toggle */}
+          {!isMobile && <ThemeToggle />}
+
+          {/* Desktop collapse toggle */}
           {!isMobile && (
             <button
               type="button"
