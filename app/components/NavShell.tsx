@@ -10,6 +10,7 @@ import {
   Home, ShoppingCart, Gamepad2, HelpCircle, User as UserIcon,
   Menu, X, LogOut, ChevronLeft, ChevronRight,
   Rocket, Wallet, Bell, Ticket, Settings, FileText, Shield, Heart,
+  Sun, Moon,
 } from 'lucide-react';
 import { c, s, r, f, sh, t } from '@/lib/design';
 import ThemeToggle from './ThemeToggle';
@@ -68,6 +69,23 @@ export default function NavShell({ user }: Props): ReactElement {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const { count: cartCount } = useCart();
+
+  // Mobile theme toggle
+  const [mobileTheme, setMobileTheme] = useState<'dark' | 'light'>('dark');
+
+  useEffect(() => {
+    try {
+      const cur = document.documentElement.getAttribute('data-theme') as 'dark' | 'light' | null;
+      if (cur === 'dark' || cur === 'light') setMobileTheme(cur);
+    } catch { /* ignore */ }
+  }, []);
+
+  const flipMobileTheme = () => {
+    const next: 'dark' | 'light' = mobileTheme === 'dark' ? 'light' : 'dark';
+    setMobileTheme(next);
+    document.documentElement.setAttribute('data-theme', next);
+    try { localStorage.setItem('gh_theme', next); } catch { /* ignore */ }
+  };
 
   useEffect(() => {
     const check = () => setIsDesktop(window.innerWidth >= 1024);
@@ -503,7 +521,30 @@ export default function NavShell({ user }: Props): ReactElement {
               </span>
             </Link>
 
-            <div style={{ width: 38 }} />
+                        <button
+              type="button"
+              onClick={flipMobileTheme}
+              aria-label={mobileTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              style={{
+                width: 38,
+                height: 38,
+                background: c.bgSubtle,
+                border: `1px solid ${c.border}`,
+                borderRadius: r.sm,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                color: c.textMuted,
+                padding: 0,
+                touchAction: 'manipulation',
+              }}
+            >
+              {mobileTheme === 'dark'
+                ? <Sun size={17} />
+                : <Moon size={17} />
+              }
+            </button>
           </header>
           <div style={{ height: 56 }} />
         </>
