@@ -8,18 +8,17 @@ import { createClient } from '@supabase/supabase-js';
 
 const PAYSTACK_SECRET = process.env.PAYSTACK_SECRET_KEY;
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
-  ?? process.env.SUPABASE_SERVICE_KEY;
+const SUPABASE_SERVICE_ROLE_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_KEY;
 
 export async function POST(req: Request) {
   try {
-    // 1. Config check
     if (!PAYSTACK_SECRET || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
       console.error('[webhook] Missing env keys');
       return new NextResponse('Config error', { status: 500 });
     }
 
-    // 2. Verify signature
+    // ── Verify signature ──
     const rawBody = await req.text();
     const signature = req.headers.get('x-paystack-signature');
     const hash = crypto
@@ -37,12 +36,33 @@ export async function POST(req: Request) {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // 3. Idempotency: dedupe by (reference, event_type)
     const reference: string = event.data?.reference ?? '';
     if (!reference) {
       return NextResponse.json({ ok: true, ignored: 'no reference' });
     }
 
+    // ── Route FIRST (before dedupe) ──
+    // This ensures we never block a retry before attempting the actual work.
+    switch (event.event) {
+      case 'charge.success': {
+        const result = await handleChargeSuccess(supabase, event.data);
+        // Only mark as processed if the handler succeeded
+        if (!result.ok) {
+          console.error('[webhook] charge.success handler failed, allowing retry:', result.error);
+          return new NextResponse('Handler failed', { status: 500 });
+        }
+        break;
+      }
+      case 'transfer.success':
+      case 'transfer.failed':
+      case 'transfer.reversed':
+        console.log('[webhook] transfer event received (handled later):', event.event);
+        break;
+      default:
+        console.log('[webhook] unhandled event:', event.event);
+    }
+
+    // ── Record processed event (after successful handling) ──
     const { error: dedupeError } = await supabase
       .from('payment_events')
       .insert({
@@ -51,30 +71,9 @@ export async function POST(req: Request) {
         payload: event,
       });
 
-    if (dedupeError) {
-      if ((dedupeError as { code?: string }).code === '23505') {
-        console.log('[webhook] duplicate — already processed:', reference);
-        return NextResponse.json({ ok: true, duplicate: true });
-      }
+    if (dedupeError && (dedupeError as { code?: string }).code !== '23505') {
       console.error('[webhook] dedupe insert failed:', dedupeError);
-      return new NextResponse('Dedupe failed', { status: 500 });
-    }
-
-    // 4. Route by event type
-    switch (event.event) {
-      case 'charge.success':
-        await handleChargeSuccess(supabase, event.data);
-        break;
-
-      // Transfer events (payments going OUT) — added later in Step 7
-      case 'transfer.success':
-      case 'transfer.failed':
-      case 'transfer.reversed':
-        console.log('[webhook] transfer event received (handled later):', event.event);
-        break;
-
-      default:
-        console.log('[webhook] unhandled event:', event.event);
+      // Don't fail the whole thing — event was handled
     }
 
     return NextResponse.json({ ok: true });
@@ -86,17 +85,18 @@ export async function POST(req: Request) {
 
 // ------------------------------------------------------------
 // charge.success handler
+// Returns { ok: true } on success, { ok: false, error } on failure.
 // ------------------------------------------------------------
 async function handleChargeSuccess(
   supabase: ReturnType<typeof createClient>,
   data: {
     reference: string;
-    amount: number;         // in minor units (kobo/cents)
+    amount: number;
     currency: string;
     customer?: { email?: string };
     metadata?: Record<string, unknown>;
   }
-) {
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const reference = data.reference;
   const amountMinor = data.amount ?? 0;
   const currency = (data.currency || 'KES').toUpperCase();
@@ -105,10 +105,8 @@ async function handleChargeSuccess(
   const purpose = (metadata.purpose as string) || '';
   const userId = (metadata.userId as string) || '';
 
-  // Convert to USD using platform_settings FX rate
-    // Prefer the USD amount the user actually agreed to pay (stored at initiate time).
-  // Fall back to FX conversion only if metadata is missing (legacy payments).
-  const storedUSD = Number((metadata as Record<string, unknown>).amountUSD);
+  // Convert to USD using metadata or FX
+  const storedUSD = Number(metadata.amountUSD);
   const amountUSD = Number.isFinite(storedUSD) && storedUSD > 0
     ? Math.round(storedUSD * 100) / 100
     : await toUSD(supabase, amountMinor, currency);
@@ -116,17 +114,13 @@ async function handleChargeSuccess(
   console.log('[webhook] charge.success', { reference, purpose, userId, amountUSD, currency });
 
   if (!purpose) {
-    console.warn('[webhook] charge.success missing metadata.purpose — reference:', reference);
-    return;
+    return { ok: false, error: 'Missing metadata.purpose' };
   }
 
-  // ----------------------------------------------------------
-  // A. WALLET DEPOSIT — credit the wallet atomically
-  // ----------------------------------------------------------
+  // ── WALLET DEPOSIT ──
   if (purpose === 'wallet_deposit') {
     if (!userId) {
-      console.error('[webhook] wallet_deposit missing userId — ref:', reference);
-      return;
+      return { ok: false, error: 'Missing userId for wallet_deposit' };
     }
 
     const { data: result, error } = await supabase.rpc('credit_wallet', {
@@ -138,20 +132,17 @@ async function handleChargeSuccess(
 
     if (error) {
       console.error('[webhook] credit_wallet RPC failed:', error);
-      throw error;
+      return { ok: false, error: `RPC failed: ${error.message}` };
     }
 
     console.log('[webhook] wallet credited:', result);
-    return;
+    return { ok: true };
   }
 
-  // ----------------------------------------------------------
-  // B. SIGNAL PURCHASE — activate signals on profile
-  // ----------------------------------------------------------
+  // ── SIGNAL PURCHASE ──
   if (purpose === 'signal_purchase') {
     if (!userId) {
-      console.error('[webhook] signal_purchase missing userId — ref:', reference);
-      return;
+      return { ok: false, error: 'Missing userId for signal_purchase' };
     }
 
     const { error: profileError } = await supabase
@@ -161,10 +152,9 @@ async function handleChargeSuccess(
 
     if (profileError) {
       console.error('[webhook] profile update failed:', profileError);
-      throw profileError;
+      return { ok: false, error: `Profile update failed: ${profileError.message}` };
     }
 
-    // Also record in purchases for admin metrics
     const { error: purchaseError } = await supabase
       .from('purchases')
       .insert({
@@ -181,21 +171,16 @@ async function handleChargeSuccess(
 
     if (purchaseError) {
       console.error('[webhook] purchases insert failed:', purchaseError);
-      // Don't throw — signals already activated, don't retry the whole event
+      // Non-blocking — signals already activated
     }
 
     console.log('[webhook] signal purchase completed for user:', userId);
-    return;
+    return { ok: true };
   }
 
-  // ----------------------------------------------------------
-  // C. UNKNOWN PURPOSE — log, don't guess
-  // ----------------------------------------------------------
-  console.warn('[webhook] unknown purpose:', purpose, '— reference:', reference);
+  return { ok: false, error: `Unknown purpose: ${purpose}` };
 }
 
-// ------------------------------------------------------------
-// Convert Paystack minor units → USD via platform_settings
 // ------------------------------------------------------------
 async function toUSD(
   supabase: ReturnType<typeof createClient>,
@@ -217,7 +202,6 @@ async function toUSD(
     return Math.round((amount / rate) * 100) / 100;
   }
 
-  // Unknown currency — log and return best-effort
-  console.error('[webhook] unknown currency for conversion:', currency);
+  console.error('[webhook] unknown currency:', currency);
   return amount;
 }
