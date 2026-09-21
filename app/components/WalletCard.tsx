@@ -1,3 +1,4 @@
+// app/components/WalletCard.tsx
 "use client";
 import { useState, useEffect, type ReactElement } from 'react';
 import {
@@ -8,6 +9,7 @@ import { supabase } from '@/lib/supabase';
 import { useCurrency } from '@/lib/useCurrency';
 import { toLocalAmount, formatAmount } from '@/lib/currency';
 import WalletWithdrawForm, { type WithdrawFormData } from './WalletWithdrawForm';
+import AviatorTransferModal from './wallet/AviatorTransferModal';
 
 type Wallet = {
   id: string;
@@ -16,6 +18,7 @@ type Wallet = {
   total_deposited: number;
   total_withdrawn: number;
   currency: string;
+  aviator_balance?: number;
 };
 
 type Transaction = {
@@ -51,12 +54,14 @@ export default function WalletCard({ userId, userEmail }: Props): ReactElement {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'deposit' | 'withdraw' | 'history' | 'notifications'>('overview');
   const [depositAmount, setDepositAmount] = useState('');
-    const [depositMethod, setDepositMethod] = useState('card');
+  const [depositMethod, setDepositMethod] = useState('card');
   const [depositLoading, setDepositLoading] = useState(false);
   const [withdrawLoading, setWithdrawLoading] = useState(false);
   const [error, setError] = useState('');
   const [greeting, setGreeting] = useState('');
   const [userName, setUserName] = useState('');
+  const [showTransfer, setShowTransfer] = useState(false);
+  const [aviatorBalance, setAviatorBalance] = useState(0);
 
   // ── Load wallet data ──
   const load = async () => {
@@ -66,6 +71,7 @@ export default function WalletCard({ userId, userEmail }: Props): ReactElement {
       if (res.ok) {
         const data = await res.json();
         setWallet(data.wallet);
+        setAviatorBalance(Number(data.wallet?.aviator_balance ?? 0));
         setTransactions(data.transactions || []);
         setNotifications(data.notifications || []);
       }
@@ -76,7 +82,6 @@ export default function WalletCard({ userId, userEmail }: Props): ReactElement {
   useEffect(() => {
     load();
 
-    // Real-time wallet updates
     const channel = supabase
       .channel(`wallet-${userId}`)
       .on('postgres_changes', {
@@ -92,7 +97,7 @@ export default function WalletCard({ userId, userEmail }: Props): ReactElement {
     return () => { supabase.removeChannel(channel); };
   }, [userId]);
 
-  // ── Time-based greeting ──
+  // ── Greeting ──
   useEffect(() => {
     const hour = new Date().getHours();
     const g = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
@@ -144,7 +149,7 @@ export default function WalletCard({ userId, userEmail }: Props): ReactElement {
     setDepositLoading(false);
   };
 
-  // ── Withdraw (called by WalletWithdrawForm) ──
+  // ── Withdraw ──
   const handleWithdraw = async (formData: WithdrawFormData) => {
     if (!wallet || parseFloat(formData.amount) > wallet.available_balance) {
       setError('Insufficient balance');
@@ -295,22 +300,52 @@ export default function WalletCard({ userId, userEmail }: Props): ReactElement {
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+        {/* Action buttons — Deposit / Withdraw / Transfer */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
           <button type="button" onClick={() => { setActiveTab('deposit'); setError(''); }} style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
             background: '#22c55e', color: 'black', border: 'none', borderRadius: '11px',
-            padding: '13px', fontWeight: 900, fontSize: '14px', cursor: 'pointer', touchAction: 'manipulation'
+            padding: '13px 8px', fontWeight: 900, fontSize: '13px', cursor: 'pointer', touchAction: 'manipulation'
           }}>
-            <Plus size={16} /> Deposit
+            <Plus size={14} /> Deposit
           </button>
           <button type="button" onClick={() => { setActiveTab('withdraw'); setError(''); }} style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
             background: '#0a1628', color: 'white', border: '1px solid #1a2740', borderRadius: '11px',
-            padding: '13px', fontWeight: 900, fontSize: '14px', cursor: 'pointer', touchAction: 'manipulation'
+            padding: '13px 8px', fontWeight: 900, fontSize: '13px', cursor: 'pointer', touchAction: 'manipulation'
           }}>
-            <Minus size={16} /> Withdraw
+            <Minus size={14} /> Withdraw
+          </button>
+          <button type="button" onClick={() => setShowTransfer(true)} style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+            background: 'rgba(139,92,246,0.15)', color: '#c4b5fd',
+            border: '1px solid rgba(139,92,246,0.3)', borderRadius: '11px',
+            padding: '13px 8px', fontWeight: 900, fontSize: '13px', cursor: 'pointer', touchAction: 'manipulation'
+          }}>
+            <RefreshCw size={14} /> Transfer
           </button>
         </div>
+
+        {/* Aviator balance display */}
+        {aviatorBalance > 0 && (
+          <div style={{
+            marginTop: 10,
+            background: 'rgba(139,92,246,0.08)',
+            border: '1px solid rgba(139,92,246,0.2)',
+            borderRadius: 10,
+            padding: '8px 12px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}>
+            <span style={{ color: '#c4b5fd', fontSize: 12, fontWeight: 700 }}>
+              🎮 Aviator Wallet
+            </span>
+            <span style={{ color: '#c4b5fd', fontSize: 14, fontWeight: 900, fontFamily: 'monospace' }}>
+              ${aviatorBalance.toFixed(2)}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* ── TABS ── */}
@@ -425,7 +460,7 @@ export default function WalletCard({ userId, userEmail }: Props): ReactElement {
                 Payment Method
               </label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                                {[
+                {[
                   { id: 'card',   label: '💳 Card / Bank',  sub: 'Visa, Mastercard, Bank' },
                   { id: 'paypal', label: '💙 PayPal',       sub: 'Pay via PayPal' },
                 ].map(m => (
@@ -540,6 +575,18 @@ export default function WalletCard({ userId, userEmail }: Props): ReactElement {
         )}
 
       </div>
+
+      {/* Aviator Transfer Modal */}
+      {showTransfer && (
+        <AviatorTransferModal
+          open={showTransfer}
+          onClose={() => setShowTransfer(false)}
+          mainBalance={bal}
+          aviatorBalance={aviatorBalance}
+          onSuccess={load}
+        />
+      )}
+
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );

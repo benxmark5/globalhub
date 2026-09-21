@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
 export async function GET(req: Request) {
@@ -39,16 +39,17 @@ export async function GET(req: Request) {
       .eq('round_id', safeRound.id);
 
     let balance = 0;
-    if (user) {
-      const { data: profile } = await admin
-        .from('profiles')
-        .select('balance')
-        .eq('id', user.id)
-        .maybeSingle();
-      balance = profile?.balance || 0;
-    }
-
-    const myBets: Record<number, any> = { 1: null, 2: null };
+let aviatorBalance = 0;
+if (user) {
+  const { data: wallet } = await admin
+    .from('wallets')
+    .select('available_balance, aviator_balance')
+    .eq('user_id', user.id)
+    .maybeSingle();
+  balance = Number(wallet?.available_balance ?? 0);
+  aviatorBalance = Number(wallet?.aviator_balance ?? 0);
+}
+        const myBets: Record<number, any> = { 1: null, 2: null };
     if (user && round) {
       const { data: bets } = await admin
         .from('game_bets')
@@ -58,8 +59,16 @@ export async function GET(req: Request) {
       for (const b of bets || []) myBets[b.slot] = b;
     }
 
-    return Response.json({ round: safeRound, history: history || [], myBets, publicBets: publicBets || [], balance, authenticated: !!user });
+    return Response.json({
+      round: safeRound,
+      history: history || [],
+      myBets,
+      publicBets: publicBets || [],
+      balance,
+      aviatorBalance,
+      authenticated: !!user,
+    });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return Response.json({ error: err.message }, { status: 500 });
   }
 }

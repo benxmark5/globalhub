@@ -1,44 +1,78 @@
-﻿'use client';
+﻿// app/aviator/game/page.tsx
+'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import Link from 'next/link';
 import {
   Loader2, AlertCircle, User, LogIn, UserPlus, Volume2, VolumeX,
-  Rocket, Radio, Users, Award, ShieldCheck, RotateCcw
+  Rocket, Users, Award, RefreshCw, Wallet,
 } from 'lucide-react';
+import AviatorTransferModal from '@/app/components/wallet/AviatorTransferModal';
 
-const GROWTH_RATE = 0.17; 
+const GROWTH_RATE = 0.17;
 const MIN_BET = 1;
 const MAX_BET = 10000;
-const FLIGHT_MAX_MULTIPLIER = 100; 
+const FLIGHT_MAX_MULTIPLIER = 5;
 const DEMO_START_BALANCE = 10000;
 const QUICK_AMOUNTS = [1, 5, 10, 25, 50, 100];
 
 type RoundState = {
-  id: string; round_number: number; status: 'betting' | 'running';
-  server_seed_hash: string; betting_ends_at: string; running_started_at: string | null;
+  id: string;
+  round_number: number;
+  status: 'betting' | 'running';
+  server_seed_hash: string;
+  betting_ends_at: string;
+  running_started_at: string | null;
 } | null;
 
-type HistoryItem = { round_id: string; round_number: number; crash_point: number; server_seed: string; server_seed_hash: string; nonce: number };
+type HistoryItem = {
+  round_id: string;
+  round_number: number;
+  crash_point: number;
+  server_seed: string;
+  server_seed_hash: string;
+  nonce: number;
+};
+
 type PublicBet = { anonymous_id: string; amount: number; status: string; cashout_at: number | null };
-type RealBet = { id: string; amount_usd: number; status: 'active' | 'cashed_out' | 'lost'; cashout_multiplier: number | null; payout_usd: number | null; auto_cashout_multiplier: number | null } | null;
-type DemoBet = { amount: number; autoCashout: number | null; status: 'active' | 'cashed_out' | 'lost'; cashoutMultiplier: number | null; payout: number | null } | null;
+
+type RealBet = {
+  id: string;
+  amount_usd: number;
+  status: 'active' | 'cashed_out' | 'lost';
+  cashout_multiplier: number | null;
+  payout_usd: number | null;
+  auto_cashout_multiplier: number | null;
+} | null;
+
+type DemoBet = {
+  amount: number;
+  autoCashout: number | null;
+  status: 'active' | 'cashed_out' | 'lost';
+  cashoutMultiplier: number | null;
+  payout: number | null;
+} | null;
 
 function getPlanePosition(progress: number, startX: number, startY: number, endX: number, endY: number) {
-  const cpX = startX + (endX - startX) * 0.5;
-  const cpY = startY - (startY - endY) * 0.15;
+  // Clamp progress: 0 = bottom-left, 1 = top-right
   const t = Math.min(Math.max(progress, 0), 1);
-  const omt = 1 - t;
-  const x = omt * omt * startX + 2 * omt * t * cpX + t * t * endX;
-  const y = omt * omt * startY + 2 * omt * t * cpY + t * t * endY;
-  const dx = 2 * omt * (cpX - startX) + 2 * t * (endX - cpX);
-  const dy = 2 * omt * (cpY - startY) + 2 * t * (endY - cpY);
-  return { x, y, angle: Math.atan2(dy, dx), cpX, cpY };
-}
-function getCurvePoint(t: number, startX: number, startY: number, cpX: number, cpY: number, endX: number, endY: number) {
-  const omt = 1 - t;
-  return { x: omt * omt * startX + 2 * omt * t * cpX + t * t * endX, y: omt * omt * startY + 2 * omt * t * cpY + t * t * endY };
+
+  // Exponential ease: rises slowly at first, then faster, then flattens
+  const ease = Math.pow(t, 1.6);
+
+  // Horizontal: linear left→right
+  const x = startX + (endX - startX) * t;
+
+  // Vertical: exponential ease from bottom to top
+  const y = startY - (startY - endY) * ease;
+
+  // Tangent for plane rotation
+  const dx = (endX - startX);
+  const dy = -(startY - endY) * (1.6 * Math.pow(Math.max(t, 0.001), 0.6));
+  const angle = Math.atan2(dy, dx);
+
+  return { x, y, angle };
 }
 
 type Particle = { t: number; offset: number; life: number };
@@ -57,6 +91,7 @@ export default function AviatorGamePage() {
   const [publicBets, setPublicBets] = useState<PublicBet[]>([]);
   const [realBets, setRealBets] = useState<Record<1 | 2, RealBet>>({ 1: null, 2: null });
   const [realBalance, setRealBalance] = useState<number | null>(null);
+  const [aviatorBalance, setAviatorBalance] = useState(0);
 
   const [betAmount, setBetAmount] = useState<Record<1 | 2, string>>({ 1: '10', 2: '25' });
   const [autoCashout, setAutoCashout] = useState<Record<1 | 2, string>>({ 1: '', 2: '' });
@@ -67,7 +102,8 @@ export default function AviatorGamePage() {
   const [error, setError] = useState('');
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
-  const [showVerify, setShowVerify] = useState<string | null>(null);
+  const [showTransfer, setShowTransfer] = useState(false);
+  const [bettingProgress, setBettingProgress] = useState(0);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number | null>(null);
@@ -77,6 +113,8 @@ export default function AviatorGamePage() {
   const pollAbortRef = useRef<AbortController | null>(null);
   const particlesRef = useRef<Particle[]>([]);
   const demoAutoFiredRef = useRef<Record<1 | 2, boolean>>({ 1: false, 2: false });
+  const realAutoFiredRef = useRef<Record<1 | 2, boolean>>({ 1: false, 2: false });
+const settleStartRef = useRef<number | null>(null);
 
   const activeBalance = accountMode === 'demo' ? demoBalance : realBalance;
   const bets = accountMode === 'demo' ? demoBets : realBets;
@@ -128,8 +166,7 @@ export default function AviatorGamePage() {
 
           setDemoBets(prev => {
             const next = { ...prev };
-            (['1', '2'] as const).forEach(k => {
-              const slot = Number(k) as 1 | 2;
+            ([1, 2] as const).forEach(slot => {
               if (next[slot]?.status === 'active') {
                 next[slot] = { ...next[slot]!, status: 'lost', payout: 0 };
               }
@@ -137,6 +174,7 @@ export default function AviatorGamePage() {
             return next;
           });
           demoAutoFiredRef.current = { 1: false, 2: false };
+          realAutoFiredRef.current = { 1: false, 2: false };
         }
       }
       if (data.round?.status === 'running' && lastStatus.current !== 'running') playSound('takeoff');
@@ -148,6 +186,7 @@ export default function AviatorGamePage() {
       setPublicBets(data.publicBets || []);
       setRealBets(data.myBets || { 1: null, 2: null });
       setRealBalance(data.balance);
+      setAviatorBalance(Number(data.aviatorBalance ?? 0));
       setConnected(true);
     } catch (e) {
       if ((e as Error).name !== 'AbortError') setConnected(false);
@@ -157,10 +196,33 @@ export default function AviatorGamePage() {
   useEffect(() => {
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
-    const loop = async () => { await poll(); if (!stopped) timer = setTimeout(loop, 1000); };
+    const loop = async () => {
+      await poll();
+      if (!stopped) timer = setTimeout(loop, 1000);
+    };
     loop();
-    return () => { stopped = true; clearTimeout(timer); if (pollAbortRef.current) pollAbortRef.current.abort(); };
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+      if (pollAbortRef.current) pollAbortRef.current.abort();
+    };
   }, [poll]);
+
+  // Betting progress ticker (drives the bottom bar)
+  useEffect(() => {
+    if (round?.status !== 'betting') {
+      setBettingProgress(0);
+      return;
+    }
+    const endsAt = new Date(round.betting_ends_at).getTime();
+    const startAt = endsAt - 10000; // betting window is typically 10s
+    const id = setInterval(() => {
+      const now = Date.now();
+      const p = Math.max(0, Math.min(1, 1 - (endsAt - now) / (endsAt - startAt)));
+      setBettingProgress(p);
+    }, 100);
+    return () => clearInterval(id);
+  }, [round?.status, round?.betting_ends_at]);
 
   useEffect(() => {
     if (round?.status === 'running' && round.running_started_at) {
@@ -171,8 +233,7 @@ export default function AviatorGamePage() {
         const m = Number.isFinite(raw) && raw > 0 ? Math.min(raw, 1_000_000) : 1.0;
         setMultiplier(m);
 
-        (['1', '2'] as const).forEach(k => {
-          const slot = Number(k) as 1 | 2;
+        ([1, 2] as const).forEach(slot => {
           const bet = demoBets[slot];
           if (bet?.status === 'active' && bet.autoCashout && !demoAutoFiredRef.current[slot] && m >= bet.autoCashout) {
             demoAutoFiredRef.current[slot] = true;
@@ -180,6 +241,24 @@ export default function AviatorGamePage() {
             setDemoBalance(b => b + payout);
             setDemoBets(prev => ({ ...prev, [slot]: { ...bet, status: 'cashed_out', cashoutMultiplier: bet.autoCashout, payout } }));
             playSound('cashout');
+          }
+        });
+                ([1, 2] as const).forEach(slot => {
+          const bet = realBets[slot];
+          if (
+            bet?.status === 'active' &&
+            bet.auto_cashout_multiplier &&
+            !realAutoFiredRef.current[slot] &&
+            m >= bet.auto_cashout_multiplier
+          ) {
+            realAutoFiredRef.current[slot] = true;
+            fetch('/api/crash-game/cashout', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ betId: bet.id }),
+            })
+              .then(() => { playSound('cashout'); void poll(); })
+              .catch(() => {});
           }
         });
 
@@ -197,12 +276,6 @@ export default function AviatorGamePage() {
   const gameState: 'betting' | 'running' | 'crashed' = freezeCrash ? 'crashed' : round?.status === 'running' ? 'running' : 'betting';
   const isFlying = gameState === 'running';
 
-  // FIX: Safely check if betting_ends_at is valid to prevent "NaNs"
-  const bettingEndsTime = round?.betting_ends_at ? new Date(round.betting_ends_at).getTime() : NaN;
-  const secondsLeft = round?.status === 'betting' && !isNaN(bettingEndsTime) 
-    ? Math.max(0, Math.ceil((bettingEndsTime - Date.now()) / 1000)) 
-    : 0;
-
   const placeBet = async (slot: 1 | 2) => {
     const amount = parseFloat(betAmount[slot]);
     if (!round || round.status !== 'betting') { setError('Round is not accepting bets'); return; }
@@ -211,19 +284,36 @@ export default function AviatorGamePage() {
 
     if (accountMode === 'demo') {
       setDemoBalance(b => b - amount);
-      setDemoBets(prev => ({ ...prev, [slot]: { amount, autoCashout: autoCashout[slot] ? parseFloat(autoCashout[slot]) : null, status: 'active', cashoutMultiplier: null, payout: null } }));
+      setDemoBets(prev => ({
+        ...prev,
+        [slot]: {
+          amount,
+          autoCashout: autoCashout[slot] ? parseFloat(autoCashout[slot]) : null,
+          status: 'active',
+          cashoutMultiplier: null,
+          payout: null,
+        },
+      }));
       demoAutoFiredRef.current[slot] = false;
       return;
     }
 
     if (!isAuthenticated) { setShowAuthPrompt(true); return; }
-    setBusy(b => ({ ...b, [slot]: true })); setError('');
+    setBusy(b => ({ ...b, [slot]: true }));
+    setError('');
     const res = await fetch('/api/crash-game/bet', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ roundId: round.id, amount, autoCashout: autoCashout[slot] ? parseFloat(autoCashout[slot]) : null, slot }),
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        roundId: round.id,
+        amount,
+        autoCashout: autoCashout[slot] ? parseFloat(autoCashout[slot]) : null,
+        slot,
+      }),
     });
     const data = await res.json();
-    if (!res.ok) setError(data.error || 'Failed to place bet'); else void poll();
+    if (!res.ok) setError(data.error || 'Failed to place bet');
+    else void poll();
     setBusy(b => ({ ...b, [slot]: false }));
   };
 
@@ -239,16 +329,53 @@ export default function AviatorGamePage() {
     }
     const bet = realBets[slot];
     if (!bet || bet.status !== 'active') return;
-    setBusy(b => ({ ...b, [slot]: true })); setError('');
+    setBusy(b => ({ ...b, [slot]: true }));
+    setError('');
     const res = await fetch('/api/crash-game/cashout', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ betId: bet.id }),
     });
     const data = await res.json();
-    if (!res.ok) setError(data.error || 'Failed to cash out'); else void poll();
+    if (!res.ok) setError(data.error || 'Failed to cash out');
+    else void poll();
     setBusy(b => ({ ...b, [slot]: false }));
   };
+  const cancelBet = async (slot: 1 | 2) => {
+    if (accountMode === 'demo') {
+      const bet = demoBets[slot];
+      if (!bet || bet.status !== 'active') return;
+      setDemoBalance(b => b + bet.amount);
+      setDemoBets(prev => ({ ...prev, [slot]: null }));
+      demoAutoFiredRef.current[slot] = false;
+      return;
+    }
 
+    const bet = realBets[slot];
+    if (!bet || bet.status !== 'active') return;
+    setBusy(b => ({ ...b, [slot]: true }));
+    setError('');
+    const res = await fetch('/api/crash-game/cancel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ betId: bet.id }),
+    });
+    const data = await res.json();
+    if (!res.ok) setError(data.error || 'Failed to cancel bet');
+    else {
+      realAutoFiredRef.current[slot] = false;
+      void poll();
+    }
+    setBusy(b => ({ ...b, [slot]: false }));
+  };
+  const resetDemo = () => {
+    setDemoBalance(DEMO_START_BALANCE);
+    setDemoBets({ 1: null, 2: null });
+  };
+
+  // ============================================================
+  // CANVAS DRAWING
+  // ============================================================
   const drawGame = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -256,55 +383,108 @@ export default function AviatorGamePage() {
     if (!ctx) return;
     const width = canvas.parentElement?.clientWidth || 800;
     const height = canvas.parentElement?.clientHeight || 460;
-    if (canvas.width !== width || canvas.height !== height) { canvas.width = width; canvas.height = height; }
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+    }
     ctx.clearRect(0, 0, width, height);
 
+    // Background
     const bg = ctx.createLinearGradient(0, 0, 0, height);
-    bg.addColorStop(0, '#111116'); bg.addColorStop(0.5, '#181822'); bg.addColorStop(1, '#0e0e12');
-    ctx.fillStyle = bg; ctx.fillRect(0, 0, width, height);
-    ctx.strokeStyle = 'rgba(255,255,255,0.02)'; ctx.lineWidth = 1;
-    for (let x = 0; x <= width; x += 60) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke(); }
-    for (let y = 0; y <= height; y += 60) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }
+    bg.addColorStop(0, '#0A0E15');
+    bg.addColorStop(0.5, '#0E1420');
+    bg.addColorStop(1, '#0A0E15');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, width, height);
 
-    const startX = width * 0.06, startY = height * 0.82, endX = width * 0.9, endY = height * 0.12;
-    const progress = Math.min(Math.max((displayMultiplier - 1) / (FLIGHT_MAX_MULTIPLIER - 1), 0), 1);
+    // Grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.02)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x <= width; x += 60) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
+    }
+    for (let y = 0; y <= height; y += 60) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
+    }
+
+    // Flight path
+    const startX = width * 0.06, startY = height * 0.82;
+    const endX = width * 0.9, endY = height * 0.15;
+
+    // progress goes 0→1 in the 1x→5x range; clamps at 1 afterward
+    const rawProgress = (displayMultiplier - 1) / (FLIGHT_MAX_MULTIPLIER - 1);
+    const progress = Math.min(Math.max(rawProgress, 0), 1);
+
     const plane = getPlanePosition(progress, startX, startY, endX, endY);
-    const { cpX, cpY } = plane;
-
     const stateColor = gameState === 'crashed' ? '#ef4444' : gameState === 'running' ? '#22c55e' : '#8b5cf6';
 
-    ctx.beginPath(); ctx.moveTo(startX, startY);
-    const steps = 60;
+    // Draw the trail
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    const steps = 80;
     for (let i = 0; i <= steps; i++) {
       const t = (i / steps) * progress;
-      const pt = getCurvePoint(t, startX, startY, cpX, cpY, endX, endY);
-      ctx.lineTo(pt.x, pt.y);
+      const ease = Math.pow(t, 1.6);
+      const ptX = startX + (endX - startX) * t;
+      const ptY = startY - (startY - endY) * ease;
+      ctx.lineTo(ptX, ptY);
     }
-    ctx.shadowColor = stateColor; ctx.shadowBlur = 14;
-    ctx.strokeStyle = stateColor; ctx.lineWidth = 2.5;
-    ctx.stroke(); ctx.shadowBlur = 0;
+    ctx.shadowColor = stateColor;
+    ctx.shadowBlur = 14;
+    ctx.strokeStyle = stateColor;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
 
-    ctx.lineTo(plane.x, height); ctx.lineTo(startX, height); ctx.closePath();
+    // Fill under the trail
+    ctx.lineTo(plane.x, height);
+    ctx.lineTo(startX, height);
+    ctx.closePath();
     const fillGrad = ctx.createLinearGradient(0, endY, 0, startY);
-    fillGrad.addColorStop(0, stateColor + '30'); fillGrad.addColorStop(1, stateColor + '00');
-    ctx.fillStyle = fillGrad; ctx.fill();
+    fillGrad.addColorStop(0, stateColor + '30');
+    fillGrad.addColorStop(1, stateColor + '00');
+    ctx.fillStyle = fillGrad;
+    ctx.fill();
 
-    if (isFlying && Math.random() < 0.6) {
-      particlesRef.current.push({ t: Math.max(0, progress - 0.01), offset: (Math.random() - 0.5) * 6, life: 1 });
+    // Smoke particles trailing behind the plane
+    if (isFlying && progress < 1 && Math.random() < 0.6) {
+      particlesRef.current.push({
+        t: Math.max(0, progress - 0.01),
+        offset: (Math.random() - 0.5) * 6,
+        life: 1,
+      });
     }
     particlesRef.current = particlesRef.current.filter(p => p.life > 0);
     for (const p of particlesRef.current) {
-      const pt = getCurvePoint(p.t, startX, startY, cpX, cpY, endX, endY);
+      const ease = Math.pow(p.t, 1.6);
+      const ptX = startX + (endX - startX) * p.t;
+      const ptY = startY - (startY - endY) * ease;
       const size = (1 - p.life) * 10 + 3;
       ctx.beginPath();
-      ctx.arc(pt.x - (1 - p.life) * 14, pt.y + p.offset + (1 - p.life) * 6, size / 2, 0, Math.PI * 2);
+      ctx.arc(ptX - (1 - p.life) * 14, ptY + p.offset + (1 - p.life) * 6, size / 2, 0, Math.PI * 2);
       ctx.fillStyle = `rgba(200,200,210,${p.life * 0.25})`;
       ctx.fill();
       p.life -= 0.02;
     }
 
+    // Plane bobbing (sinusoidal up-down wobble)
+    const bobTime = Date.now() * 0.004;
+    const bobStrength = isFlying ? 1 : 0;
+    const bobY = Math.sin(bobTime) * 3 * bobStrength;
+
+    // Draw the plane
+        let settleOffset = 0;
+    if (gameState === 'crashed') {
+      if (settleStartRef.current === null) settleStartRef.current = Date.now();
+      const t = Math.min(1, (Date.now() - settleStartRef.current) / 1400);
+      const eased = 1 - Math.pow(1 - t, 2);
+      settleOffset = eased * (height * 0.55);
+    } else {
+      settleStartRef.current = null;
+    }
+
     ctx.save();
-    ctx.translate(plane.x, plane.y);
+    ctx.translate(plane.x, plane.y + bobY + settleOffset);
     ctx.rotate(plane.angle);
     ctx.scale(2.2, 2.2);
 
@@ -313,7 +493,10 @@ export default function AviatorGamePage() {
       g.addColorStop(0, 'rgba(255,100,0,0.8)');
       g.addColorStop(0.5, 'rgba(255,200,0,0.4)');
       g.addColorStop(1, 'rgba(255,100,0,0)');
-      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(-16, 0, 12, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(-16, 0, 12, 0, Math.PI * 2);
+      ctx.fill();
     }
 
     ctx.fillStyle = '#b91c1c';
@@ -358,21 +541,55 @@ export default function AviatorGamePage() {
     ctx.fillRect(-11, 16, 1, 1);
     ctx.restore();
 
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    // Center multiplier text
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
     const fontSize = Math.min(width / 4.2, 76);
     ctx.font = `900 ${fontSize}px Inter, sans-serif`;
     ctx.fillStyle = gameState === 'crashed' ? '#f87171' : '#ffffff';
     ctx.fillText(`${displayMultiplier.toFixed(2)}x`, width / 2, height * 0.38);
 
+    // Status text
     ctx.font = '15px Inter, sans-serif';
     ctx.fillStyle = gameState === 'running' ? '#4ade80' : gameState === 'crashed' ? '#f87171' : '#fbbf24';
     ctx.fillText(
-      gameState === 'running' ? '● FLYING' : gameState === 'crashed' ? 'CRASHED' : `BETTING CLOSES IN ${secondsLeft}s`,
+      gameState === 'running' ? '● FLYING' : gameState === 'crashed' ? 'CRASHED' : 'BETTING',
       width / 2, height * 0.55
     );
-    ctx.font = '11px Inter, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.15)';
+
+    // Round number
+    ctx.font = '11px Inter, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
     ctx.fillText(`ROUND #${round?.round_number ?? '--'}`, width / 2, height * 0.94);
-  }, [displayMultiplier, gameState, isFlying, round, secondsLeft]);
+
+    // ============================================================
+    // Betting timer bar (bottom, right→left sweep)
+    // ============================================================
+    if (gameState === 'betting') {
+      const barY = height - 6;
+      const barHeight = 4;
+      const barWidth = width;
+
+      // Background track
+      ctx.fillStyle = 'rgba(255,255,255,0.06)';
+      ctx.fillRect(0, barY, barWidth, barHeight);
+
+      // Filled portion sweeps from right to left
+      const filledWidth = barWidth * (1 - bettingProgress);
+      const barGrad = ctx.createLinearGradient(0, 0, barWidth, 0);
+      barGrad.addColorStop(0, '#fbbf24');
+      barGrad.addColorStop(1, '#ef4444');
+      ctx.fillStyle = barGrad;
+      ctx.fillRect(barWidth - filledWidth, barY, filledWidth, barHeight);
+    }
+  }, [displayMultiplier, gameState, isFlying, round, secondsLeftSafe(round), bettingProgress]);
+
+  // Helper to keep secondsLeft out of the deps issue
+  function secondsLeftSafe(r: RoundState) {
+    if (r?.status !== 'betting') return 0;
+    const endsAt = new Date(r.betting_ends_at).getTime();
+    return Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+  }
 
   useEffect(() => {
     let raf: number;
@@ -380,109 +597,517 @@ export default function AviatorGamePage() {
     loop();
     const resize = () => drawGame();
     window.addEventListener('resize', resize);
-    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', resize); };
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', resize);
+    };
   }, [drawGame]);
 
   if (!connected) {
     return (
-      <div className="min-h-screen bg-[#0E0E12] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-red-500" />
+      <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Loader2 className="w-8 h-8 animate-spin text-emerald-500" />
         <span className="ml-3 text-white/40">Connecting to Aviator...</span>
       </div>
     );
   }
 
+  // ── Render a bet slot ──
   const renderSlot = (slot: 1 | 2) => {
     const bet = bets[slot];
+    const realBet = accountMode === 'real' ? realBets[slot] : null;
+    const isBetting = round?.status === 'betting';
+    const betDisabled = !isBetting || !!bet;
+
     return (
-      <div className="bg-[#14141A] border border-white/10 rounded-2xl p-5 flex flex-col gap-4 shadow-xl">
-        <div className="flex justify-between items-center text-xs text-white/60 font-semibold">
-          <span>BET {slot}</span><span>Min: ${MIN_BET}</span>
+      <div style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--border-strong)',
+        borderRadius: 16,
+        padding: 14,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ color: 'var(--text-muted)', fontSize: 11, fontWeight: 800, textTransform: 'uppercase' }}>
+            Bet {slot}
+          </span>
+          <span style={{ color: 'var(--text-dim)', fontSize: 10 }}>Min ${MIN_BET}</span>
         </div>
-        <input type="number" value={betAmount[slot]} onChange={e => setBetAmount(a => ({ ...a, [slot]: e.target.value }))}
-          disabled={round?.status !== 'betting' || !!bet}
-          className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3.5 text-white font-bold text-lg outline-none focus:border-red-500 disabled:opacity-40" />
-        <input type="text" placeholder="Auto cash-out e.g. 2.00" value={autoCashout[slot]} onChange={e => setAutoCashout(a => ({ ...a, [slot]: e.target.value }))}
-          disabled={round?.status !== 'betting' || !!bet}
-          className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm outline-none focus:border-red-500 disabled:opacity-40" />
-        <div className="grid grid-cols-3 gap-2">
-          {QUICK_AMOUNTS.slice(0, 3).map(val => (
-            <button key={val} onClick={() => setBetAmount(a => ({ ...a, [slot]: String(val) }))} disabled={round?.status !== 'betting' || !!bet}
-              className="py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-bold text-white/80 disabled:opacity-40 transition">${val}</button>
-          ))}
-        </div>
-        {bet?.status === 'active' ? (
-          isFlying ? (
-            <button onClick={() => cashout(slot)} disabled={busy[slot]}
-              className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-black font-black text-lg rounded-xl shadow-lg transition active:scale-[0.99] disabled:opacity-50">
-              {busy[slot] ? 'Cashing out…' : `CASH OUT $${(('amount' in bet ? bet.amount : (bet as any).amount_usd) * multiplier).toFixed(2)}`}
-            </button>
+
+                {/* Amount row: [-] [input] [+] [Bet / Cancel / Cash / result button] */}
+        <div style={{ display: 'grid', gridTemplateColumns: '34px 1fr 34px auto', gap: 6, alignItems: 'stretch' }}>
+          <button
+            type="button"
+            onClick={() => setBetAmount(a => ({ ...a, [slot]: String(Math.max(MIN_BET, (Number(betAmount[slot]) || 0) - 10)) }))}
+            disabled={betDisabled}
+            style={{
+              background: 'var(--bg)', border: '1px solid var(--border-strong)',
+              borderRadius: 10, color: 'var(--text)', fontSize: 18, fontWeight: 900,
+              cursor: betDisabled ? 'not-allowed' : 'pointer', opacity: betDisabled ? 0.4 : 1,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >−</button>
+
+          <input
+            type="number"
+            value={betAmount[slot]}
+            onChange={e => setBetAmount(a => ({ ...a, [slot]: e.target.value }))}
+            onBlur={() => {
+              const n = Number(betAmount[slot]);
+              const cap = Math.min(MAX_BET, activeBalance ?? MAX_BET);
+              const clamped = !Number.isFinite(n) || n <= 0
+                ? MIN_BET
+                : Math.max(MIN_BET, Math.min(cap, n));
+              setBetAmount(a => ({ ...a, [slot]: String(clamped) }));
+            }}
+            disabled={betDisabled}
+            className="form-input"
+            style={{ fontSize: 15, fontWeight: 900, fontFamily: 'monospace', textAlign: 'center', padding: '10px 6px' }}
+          />
+
+          <button
+            type="button"
+            onClick={() => setBetAmount(a => ({ ...a, [slot]: String(Math.min(MAX_BET, (Number(betAmount[slot]) || 0) + 10)) }))}
+            disabled={betDisabled}
+            style={{
+              background: 'var(--bg)', border: '1px solid var(--border-strong)',
+              borderRadius: 10, color: 'var(--text)', fontSize: 18, fontWeight: 900,
+              cursor: betDisabled ? 'not-allowed' : 'pointer', opacity: betDisabled ? 0.4 : 1,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >+</button>
+
+          {bet?.status === 'active' ? (
+            isFlying ? (
+              <button
+                type="button"
+                onClick={() => cashout(slot)}
+                disabled={busy[slot]}
+                style={{
+                  padding: '10px 18px', background: 'linear-gradient(135deg,#22c55e,#16a34a)',
+                  color: 'black', border: 'none', borderRadius: 10, fontWeight: 900,
+                  fontSize: 13, cursor: busy[slot] ? 'wait' : 'pointer', whiteSpace: 'nowrap',
+                }}
+              >
+                {busy[slot] ? '…' : `CASH $${(
+                  accountMode === 'demo'
+                    ? (bet as DemoBet)!.amount * multiplier
+                    : (realBet as RealBet)!.amount_usd * multiplier
+                ).toFixed(0)}`}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => cancelBet(slot)}
+                disabled={busy[slot]}
+                style={{
+                  padding: '10px 18px',
+                  background: 'linear-gradient(135deg,#ef4444,#b91c1c)',
+                  color: 'white', border: 'none', borderRadius: 10,
+                  fontWeight: 900, fontSize: 13,
+                  cursor: busy[slot] ? 'wait' : 'pointer', whiteSpace: 'nowrap',
+                }}
+              >
+                {busy[slot] ? '…' : 'CANCEL'}
+              </button>
+            )
+          ) : bet?.status === 'cashed_out' ? (
+            <div style={{
+              padding: '10px 14px', background: 'rgba(34,197,94,0.12)',
+              border: '1px solid rgba(34,197,94,0.4)', color: '#4ade80',
+              borderRadius: 10, textAlign: 'center', fontSize: 12, fontWeight: 800,
+              whiteSpace: 'nowrap',
+            }}>
+              Won ${(
+                accountMode === 'demo'
+                  ? (demoBets[slot]?.payout ?? 0)
+                  : (realBets[slot]?.payout_usd ?? 0)
+              ).toFixed(0)}
+            </div>
+          ) : bet?.status === 'lost' ? (
+            <div style={{
+              padding: '10px 14px', background: 'rgba(239,68,68,0.1)',
+              border: '1px solid rgba(239,68,68,0.3)', color: '#f87171',
+              borderRadius: 10, textAlign: 'center', fontSize: 12, fontWeight: 800,
+              whiteSpace: 'nowrap',
+            }}>Lost</div>
           ) : (
-            <div className="w-full py-4 bg-white/5 border border-white/10 text-white/40 font-bold rounded-xl text-center text-sm">Waiting for takeoff…</div>
-          )
-        ) : bet?.status === 'cashed_out' ? (
-          <div className="w-full py-4 bg-emerald-950/60 border border-emerald-500/40 text-emerald-400 font-bold rounded-xl text-center text-base">
-            Won ${'payout' in bet ? bet.payout?.toFixed(2) : (bet as any).payout_usd?.toFixed(2)}
-          </div>
-        ) : bet?.status === 'lost' ? (
-          <div className="w-full py-4 bg-red-950/40 border border-red-500/30 text-red-400 font-bold rounded-xl text-center text-base">Lost</div>
-        ) : (
-          <button onClick={() => placeBet(slot)} disabled={busy[slot] || round?.status !== 'betting'}
-            className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-xl shadow-lg transition disabled:opacity-40">
-            {busy[slot] ? 'PLACING…' : round?.status === 'betting' ? `BET $${betAmount[slot] || 0}` : 'WAITING FOR NEXT ROUND'}
+            <button
+              type="button"
+              onClick={() => placeBet(slot)}
+              disabled={busy[slot] || !isBetting}
+              style={{
+                padding: '10px 22px',
+                background: 'linear-gradient(135deg,#22c55e,#16a34a)',
+                color: 'black', border: 'none', borderRadius: 10,
+                fontWeight: 900, fontSize: 14,
+                cursor: busy[slot] || !isBetting ? 'not-allowed' : 'pointer',
+                opacity: busy[slot] || !isBetting ? 0.5 : 1,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {busy[slot] ? '…' : 'BET'}
+            </button>
+          )}
+        </div>
+
+        {/* Quick chips */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+          {[10, 50, 100].map(delta => (
+            <button
+              key={delta}
+              type="button"
+              onClick={() => setBetAmount(a => ({ ...a, [slot]: String(Math.min(MAX_BET, (Number(a[slot]) || 0) + delta)) }))}
+              disabled={betDisabled}
+              style={{
+                padding: '6px 0', background: 'var(--bg)', border: '1px solid var(--border)',
+                borderRadius: 8, color: 'var(--text-muted)', fontSize: 11, fontWeight: 700,
+                cursor: betDisabled ? 'not-allowed' : 'pointer', opacity: betDisabled ? 0.4 : 1,
+              }}
+            >
+              +{delta}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setBetAmount(a => ({ ...a, [slot]: String(Math.min(MAX_BET, activeBalance ?? MAX_BET)) }))}
+            disabled={betDisabled}
+            style={{
+              padding: '6px 0', background: 'var(--bg)', border: '1px solid var(--border)',
+              borderRadius: 8, color: 'var(--text-muted)', fontSize: 11, fontWeight: 800,
+              cursor: betDisabled ? 'not-allowed' : 'pointer', opacity: betDisabled ? 0.4 : 1,
+            }}
+          >
+            MAX
           </button>
-        )}
+        </div>
+        
+
+                {/* Auto cashout */}
+        <input
+          type="text"
+          placeholder="Auto cash-out (e.g. 2.00)"
+          value={autoCashout[slot]}
+          onChange={e => setAutoCashout(a => ({ ...a, [slot]: e.target.value }))}
+          disabled={betDisabled}
+          className="form-input"
+          style={{ fontSize: 12, padding: '8px 10px' }}
+        />
       </div>
     );
   };
 
   return (
-    <div className="min-h-screen bg-[#0E0E12] text-white p-3 sm:p-6 font-sans">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex flex-col md:flex-row justify-between items-center gap-3 mb-3 bg-[#16161D] px-5 py-3 rounded-2xl border border-white/10">
-          <div className="flex items-center gap-3">
-            <Rocket className="w-7 h-7 text-red-500" />
-            <h1 className="text-2xl font-black italic tracking-wider text-red-500">Aviator</h1>
-            <span className={`text-[10px] px-2.5 py-1 rounded font-bold uppercase border ${accountMode === 'real' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border-amber-500/30'}`}>
-              {accountMode === 'real' ? '● Real Money' : 'Demo Practice'}
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--text)' }}>
+      {/* ── Top bar ── */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '12px 16px', borderBottom: '1px solid var(--border-strong)',
+        background: 'var(--surface)', position: 'sticky', top: 0, zIndex: 20,
+        flexWrap: 'wrap', gap: 10,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
+            <Rocket className="w-5 h-5 text-red-500" />
+            <span style={{ fontWeight: 900, fontSize: 16, color: 'var(--text)' }}>Aviator</span>
+          </Link>
+
+          {/* Demo / Real toggle */}
+          <div style={{
+            display: 'flex', background: 'var(--bg)', borderRadius: 10,
+            border: '1px solid var(--border-strong)', overflow: 'hidden',
+          }}>
+            {(['demo', 'real'] as const).map(mode => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => {
+                  if (mode === 'real' && !isAuthenticated) { setShowAuthPrompt(true); return; }
+                  setAccountMode(mode);
+                }}
+                style={{
+                  padding: '6px 14px', border: 'none', cursor: 'pointer',
+                  fontWeight: 800, fontSize: 12, textTransform: 'uppercase',
+                  background: accountMode === mode
+                    ? (mode === 'demo' ? '#8b5cf6' : '#22c55e')
+                    : 'transparent',
+                  color: accountMode === mode ? 'black' : 'var(--text-muted)',
+                }}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Balance */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 6,
+            background: 'var(--bg)', border: '1px solid var(--border-strong)',
+            borderRadius: 10, padding: '6px 12px',
+          }}>
+            <Wallet className="w-4 h-4 text-emerald-400" />
+            <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: 13 }}>
+              ${(activeBalance ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="bg-black/50 p-1 rounded-xl border border-white/10 flex items-center">
-              <button onClick={() => setAccountMode('demo')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition ${accountMode === 'demo' ? 'bg-amber-500 text-black' : 'text-white/60 hover:text-white'}`}>Demo</button>
-              <button onClick={() => setAccountMode('real')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${accountMode === 'real' ? 'bg-emerald-500 text-black' : 'text-white/60 hover:text-white'}`}><ShieldCheck size={14} /> Real Money</button>
-            </div>
-            <button onClick={() => setSoundEnabled(s => !s)} className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 transition">
-              {soundEnabled ? <Volume2 size={18} className="text-white/70" /> : <VolumeX size={18} className="text-white/40" />}
+
+          {accountMode === 'demo' && (
+            <button
+              type="button"
+              onClick={resetDemo}
+              title="Reset demo balance"
+              style={{
+                background: 'var(--bg)', border: '1px solid var(--border-strong)',
+                borderRadius: 10, padding: 8, cursor: 'pointer', color: 'var(--text-muted)',
+                display: 'flex', alignItems: 'center',
+              }}
+            >
+              <RefreshCw className="w-4 h-4" />
             </button>
-            <div className="px-4 py-1.5 bg-black/40 rounded-xl border border-white/10 text-right min-w-[140px]">
-              <p className="text-[10px] text-white/40 uppercase font-semibold">{accountMode} Balance</p>
-              <p className={`text-base font-bold tabular-nums ${accountMode === 'real' ? 'text-emerald-400' : 'text-amber-400'}`}>
-                {activeBalance !== null ? `$${activeBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}
-              </p>
-            </div>
-          </div>
-        </div>
+          )}
 
-        {accountMode === 'demo' && (
-          <div className="mb-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center justify-between gap-3">
-            <p className="text-xs text-amber-300">Practice mode — this money isn't real.</p>
-            <button onClick={() => { setDemoBalance(DEMO_START_BALANCE); setDemoBets({ 1: null, 2: null }); }}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-bold rounded-lg transition">
-              <RotateCcw size={12} /> Reset to ${DEMO_START_BALANCE.toLocaleString()}
+          {accountMode === 'real' && (
+            <button
+              type="button"
+              onClick={() => setShowTransfer(true)}
+              style={{
+                background: 'var(--bg)', border: '1px solid var(--border-strong)',
+                borderRadius: 10, padding: '6px 12px', cursor: 'pointer',
+                color: 'var(--text)', fontWeight: 700, fontSize: 12,
+              }}
+            >
+              Transfer
             </button>
-          </div>
-        )}
+          )}
 
-        <div className="relative h-[420px] sm:h-[520px] bg-[#111116] rounded-2xl border border-white/10 overflow-hidden shadow-2xl">
-          <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-          {renderSlot(1)}
-          {renderSlot(2)}
+          <button
+            type="button"
+            onClick={() => setSoundEnabled(s => !s)}
+            title={soundEnabled ? 'Mute' : 'Unmute'}
+            style={{
+              background: 'var(--bg)', border: '1px solid var(--border-strong)',
+              borderRadius: 10, padding: 8, cursor: 'pointer', color: 'var(--text-muted)',
+              display: 'flex', alignItems: 'center',
+            }}
+          >
+            {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+          </button>
         </div>
       </div>
+
+      {/* ── Main layout ── */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1fr) 320px',
+        gap: 12,
+        padding: 12,
+        maxWidth: 1400,
+        margin: '0 auto',
+      }}>
+        {/* ── Left column: canvas + bet slots ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* Canvas */}
+          <div style={{
+            position: 'relative',
+            width: '100%',
+            height: 460,
+            borderRadius: 16,
+            overflow: 'hidden',
+            border: '1px solid var(--border-strong)',
+            background: '#0A0E15',
+          }}>
+            <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%' }} />
+          </div>
+
+          {/* Bet slots */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            {renderSlot(1)}
+            {renderSlot(2)}
+          </div>
+        </div>
+
+        {/* ── Right column: history + live bets ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* History */}
+          <div style={{
+            background: 'var(--surface)', border: '1px solid var(--border-strong)',
+            borderRadius: 16, padding: 12,
+          }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10,
+              color: 'var(--text-muted)', fontSize: 11, fontWeight: 800, textTransform: 'uppercase',
+            }}>
+              <Award className="w-4 h-4" /> Recent Rounds
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {history.slice(0, 18).map(h => (
+                <span
+                  key={h.round_id}
+                  style={{
+                    padding: '4px 9px', borderRadius: 8, fontSize: 11, fontWeight: 800,
+                    fontFamily: 'monospace',
+                    background: h.crash_point >= 2 ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.12)',
+                    color: h.crash_point >= 2 ? '#4ade80' : '#f87171',
+                    border: `1px solid ${h.crash_point >= 2 ? 'rgba(34,197,94,0.35)' : 'rgba(239,68,68,0.3)'}`,
+                  }}
+                >
+                  {h.crash_point.toFixed(2)}x
+                </span>
+              ))}
+              {history.length === 0 && (
+                <span style={{ color: 'var(--text-dim)', fontSize: 12 }}>No rounds yet</span>
+              )}
+            </div>
+          </div>
+
+          {/* Live bets */}
+          <div style={{
+            background: 'var(--surface)', border: '1px solid var(--border-strong)',
+            borderRadius: 16, padding: 12, flex: 1, minHeight: 260,
+          }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              marginBottom: 10,
+            }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                color: 'var(--text-muted)', fontSize: 11, fontWeight: 800, textTransform: 'uppercase',
+              }}>
+                <Users className="w-4 h-4" /> Live Bets
+              </div>
+              <span style={{ color: 'var(--text-dim)', fontSize: 11, fontWeight: 700 }}>
+                {publicBets.length}
+              </span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 400, overflowY: 'auto' }}>
+              {publicBets.slice(0, 30).map((b, i) => (
+                <div
+                  key={`${b.anonymous_id}-${i}`}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '6px 10px', borderRadius: 8,
+                    background: b.status === 'cashed_out' ? 'rgba(34,197,94,0.08)' : 'rgba(255,255,255,0.02)',
+                    border: `1px solid ${b.status === 'cashed_out' ? 'rgba(34,197,94,0.25)' : 'var(--border)'}`,
+                  }}
+                >
+                  <span style={{
+                    color: 'var(--text-muted)', fontSize: 11, fontFamily: 'monospace',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 90,
+                  }}>
+                    {b.anonymous_id}
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ color: 'var(--text)', fontSize: 11, fontWeight: 700, fontFamily: 'monospace' }}>
+                      ${b.amount.toFixed(2)}
+                    </span>
+                    {b.status === 'cashed_out' && b.cashout_at && (
+                      <span style={{
+                        color: '#4ade80', fontSize: 11, fontWeight: 800, fontFamily: 'monospace',
+                      }}>
+                        {b.cashout_at.toFixed(2)}x
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {publicBets.length === 0 && (
+                <span style={{ color: 'var(--text-dim)', fontSize: 12, textAlign: 'center', padding: 16 }}>
+                  No bets this round
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Error toast ── */}
+      {error && (
+        <div style={{
+          position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)',
+          background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.5)',
+          color: '#fca5a5', borderRadius: 12, padding: '10px 16px',
+          display: 'flex', alignItems: 'center', gap: 8, zIndex: 60,
+          fontSize: 13, fontWeight: 700,
+        }}>
+          <AlertCircle className="w-4 h-4" />
+          {error}
+          <button
+            type="button"
+            onClick={() => setError('')}
+            style={{ background: 'none', border: 'none', color: '#fca5a5', cursor: 'pointer', marginLeft: 4, fontWeight: 900 }}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {/* ── Auth prompt ── */}
+      {showAuthPrompt && (
+        <div
+          onClick={() => setShowAuthPrompt(false)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 70,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: 'var(--surface)', border: '1px solid var(--border-strong)',
+              borderRadius: 20, padding: 28, maxWidth: 380, width: '90%',
+              display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center',
+              textAlign: 'center',
+            }}
+          >
+            <User className="w-10 h-10 text-emerald-400" />
+            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: 'var(--text)' }}>
+              Sign in to play for real
+            </h3>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>
+              Create an account or log in to place real-money bets on Aviator.
+            </p>
+            <div style={{ display: 'flex', gap: 10, width: '100%' }}>
+              <Link
+                href="/login"
+                style={{
+                  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  padding: '10px 0', background: 'var(--bg)', border: '1px solid var(--border-strong)',
+                  borderRadius: 10, color: 'var(--text)', fontWeight: 800, fontSize: 13,
+                  textDecoration: 'none',
+                }}
+              >
+                <LogIn className="w-4 h-4" /> Log in
+              </Link>
+              <Link
+                href="/register"
+                style={{
+                  flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  padding: '10px 0', background: 'linear-gradient(135deg,#22c55e,#16a34a)',
+                  borderRadius: 10, color: 'black', fontWeight: 900, fontSize: 13,
+                  textDecoration: 'none',
+                }}
+              >
+                <UserPlus className="w-4 h-4" /> Sign up
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Transfer modal ── */}
+      {showTransfer && (
+  <AviatorTransferModal
+    open={showTransfer}
+    onClose={() => setShowTransfer(false)}
+    mainBalance={realBalance ?? 0}
+    aviatorBalance={aviatorBalance}
+    onSuccess={() => { void poll(); }}
+  />
+)}
     </div>
   );
 }
