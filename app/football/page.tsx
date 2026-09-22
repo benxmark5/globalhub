@@ -240,14 +240,7 @@ const user = session?.user ?? null;
                     </p>
                   </div>
                 </div>
-                <Link href="/pricing" style={{
-                  background: '#22c55e', color: 'black',
-                  padding: '10px 18px', borderRadius: '10px',
-                  fontSize: '13px', fontWeight: 900,
-                  textDecoration: 'none', flexShrink: 0
-                }}>
-                  Buy Signals
-                </Link>
+               
               </div>
             ) : (
               <div style={{
@@ -793,15 +786,7 @@ const user = session?.user ?? null;
             }}>
               Buy bundles for better value — up to 100 signals
             </p>
-            <Link href="/pricing" style={{
-              display: 'inline-flex', alignItems: 'center',
-              gap: '8px', background: '#22c55e', color: 'black',
-              padding: '12px 28px', borderRadius: '10px',
-              fontWeight: 900, fontSize: '14px',
-              textDecoration: 'none'
-            }}>
-              View All Packages →
-            </Link>
+            
           </div>
         )}
 

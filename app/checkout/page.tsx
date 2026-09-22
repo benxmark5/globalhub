@@ -57,7 +57,7 @@ export default function CheckoutPage() {
   // ── Init ────────────────────────────────────
   useEffect(() => {
     const stored = localStorage.getItem('selectedPlan');
-    if (!stored) { router.push('/pricing'); return; }
+    if (!stored) { router.push('/cart'); return; }
     setPlan(JSON.parse(stored));
 
     supabase.auth.getSession().then(({ data: { session } }) => {

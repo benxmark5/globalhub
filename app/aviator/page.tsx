@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
@@ -575,15 +575,7 @@ export default function AviatorPublicPage() {
             }}>
               Single signal from $3 · Bundle of 4 for $10
             </p>
-            <Link href="/pricing" style={{
-              display: 'inline-block',
-              background: '#ef4444', color: 'white',
-              padding: '12px 28px', borderRadius: '10px',
-              fontWeight: 900, fontSize: '14px',
-              textDecoration: 'none'
-            }}>
-              View Aviator Pricing →
-            </Link>
+            
           </div>
         )}
 

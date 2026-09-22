@@ -5,7 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 import {
   Menu, X, Trophy, TrendingUp, Zap,
-  DollarSign, User, LogOut, HelpCircle,
+    User, LogOut, HelpCircle,
   Shield, FileText, Heart, ShoppingCart, ShoppingBag
 } from 'lucide-react';
 import { useCart } from '@/lib/cart';
@@ -59,10 +59,7 @@ export default function GlobalNav() {
       icon: Trophy, label: 'Play Aviator Game',
       href: '/aviator/game', color: '#fbbf24'
     },
-    {
-      icon: DollarSign, label: 'Pricing',
-      href: '/pricing', color: '#fbbf24'
-    },
+    
     {
       icon: ShoppingCart, label: `Cart${currentCartCount > 0 ? ` (${currentCartCount})` : ''}`,
       href: '/cart', color: '#60a5fa'

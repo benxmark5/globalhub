@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   Home, LayoutDashboard, Ticket,
   ShoppingCart, User, MoreHorizontal,
-  TrendingUp, Zap, DollarSign, BarChart3,
+      TrendingUp, Zap, BarChart3,
   Activity, Calendar, Bell, ShoppingBag,
   HelpCircle, Shield, FileText, LogOut,
   X, ChevronRight, Star, Rocket
@@ -17,7 +17,7 @@ const MORE_ITEMS = [
   { icon: TrendingUp, label: 'Football Signals', href: '/football', color: '#22c55e' },
   { icon: Zap,        label: 'Aviator Signals',  href: '/aviator',  color: '#f87171' },
   { icon: Rocket,     label: 'Aviator Game',     href: '/aviator/game', color: '#fbbf24' },
-  { icon: DollarSign, label: 'Pricing',          href: '/pricing',  color: '#fbbf24' },
+  
   { icon: BarChart3,  label: 'Statistics',       href: '/statistics',color: '#60a5fa'},
   { icon: Activity,   label: 'Live Scores',      href: '/scores',   color: '#34d399' },
   { icon: Calendar,   label: 'Events',           href: '/events',   color: '#a78bfa' },

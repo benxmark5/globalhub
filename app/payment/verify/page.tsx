@@ -123,7 +123,7 @@ function VerifyContent() {
         <div style={{ maxWidth: '400px', width: '100%', textAlign: 'center', color: 'white' }}>
             <XCircle size={64} color="#f87171" style={{ margin: '0 auto 20px' }} />
             <h2>Payment Failed</h2>
-            <Link href="/pricing" style={{ color: '#22c55e' }}>Try again</Link>
+            <Link href="/marketplace" style={{ color: '#22c55e' }}>Try again</Link>
         </div>
     </div>
   );

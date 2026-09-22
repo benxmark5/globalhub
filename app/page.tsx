@@ -733,7 +733,7 @@ export default function LandingPage(): ReactElement {
               { label: 'Become a Provider', href: '/become-provider' },
               { label: 'Support', href: '/support' },
               { label: 'FAQ', href: '/faq' },
-              { label: 'Pricing', href: '/pricing' },
+              
             ].map(l => (
               <Link
                 key={l.href}
