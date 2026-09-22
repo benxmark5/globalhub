@@ -2,6 +2,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "../lib/theme.css";
+import { AuthProvider } from "@/context/AuthContext";
 import { CartProvider } from "@/lib/cart";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
@@ -61,15 +62,17 @@ export default async function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body>
-        <CartProvider>
-          <NavShell user={user} />
-          <VisitorTracker />
-          <main style={{ minHeight: 'calc(100vh - 64px)' }}>
-            {children}
-          </main>
-          <ChatWidget />
-        </CartProvider>
+            <body>
+        <AuthProvider>
+          <CartProvider>
+            <NavShell user={user} />
+            <VisitorTracker />
+            <main style={{ minHeight: 'calc(100vh - 64px)' }}>
+              {children}
+            </main>
+            <ChatWidget />
+          </CartProvider>
+        </AuthProvider>
       </body>
     </html>
   );
