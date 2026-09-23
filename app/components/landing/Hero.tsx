@@ -4,6 +4,7 @@
 import { useEffect, useState, type ReactElement } from 'react';
 import Link from 'next/link';
 import { ArrowRight, ShieldCheck, Zap, Globe } from 'lucide-react';
+import { useLanguage } from '@/lib/i18n';
 
 interface Particle {
   left: string;
@@ -14,6 +15,7 @@ interface Particle {
 }
 
 export default function Hero(): ReactElement {
+  const { t } = useLanguage();
   const [particles, setParticles] = useState<Particle[]>([]);
   const [videoOk, setVideoOk] = useState(false);
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
@@ -56,7 +58,7 @@ export default function Hero(): ReactElement {
   }, []);
 
   const primaryHref = loggedIn ? '/account' : '/register';
-  const primaryLabel = loggedIn ? 'Open Dashboard' : 'Get Started Free';
+  const primaryLabel = loggedIn ? t('hero.cta.dashboard') : t('hero.cta.getStarted');
 
   return (
     <section
@@ -144,20 +146,20 @@ export default function Hero(): ReactElement {
             boxShadow: '0 0 8px #22c55e',
           }} />
           <span style={{ color: '#86efac', fontSize: 12, fontWeight: 700, letterSpacing: '0.02em' }}>
-            Live signals available now
+            {t('hero.badge')}
           </span>
         </div>
 
         {/* Headline */}
         <h1 className="landing-h1" style={{ color: 'white', marginBottom: 20 }}>
-          Win daily with{' '}
+          {t('hero.titlePrefix')}{' '}
           <span style={{
             background: 'linear-gradient(135deg,#22c55e 0%,#86efac 50%,#22c55e 100%)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             backgroundClip: 'text',
           }}>
-            expert signals
+            {t('hero.titleAccent')}
           </span>
         </h1>
 
@@ -170,8 +172,7 @@ export default function Hero(): ReactElement {
             margin: '0 auto 40px',
           }}
         >
-          Expert football analysis and Aviator signals. Trusted by thousands of winners across
-          100+ countries. Pay per signal — no subscriptions.
+          {t('hero.subtitle')}
         </p>
 
         {/* CTAs */}
@@ -222,7 +223,7 @@ export default function Hero(): ReactElement {
               textDecoration: 'none',
             }}
           >
-            Browse Signals
+            {t('hero.cta.browse')}
           </Link>
         </div>
 
@@ -239,15 +240,15 @@ export default function Hero(): ReactElement {
         >
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <Globe size={14} color="#22c55e" />
-            100+ countries
+            {t('hero.trust.countries')}
           </span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <Zap size={14} color="#22c55e" />
-            Payouts within 30 min
+            {t('hero.trust.payouts')}
           </span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <ShieldCheck size={14} color="#22c55e" />
-            Secured by Paystack
+            {t('hero.trust.secured')}
           </span>
         </div>
       </div>

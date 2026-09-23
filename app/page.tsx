@@ -1,7 +1,7 @@
 // app/page.tsx
 "use client";
 
-import { useState, useEffect, type ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
@@ -12,48 +12,23 @@ import Hero from './components/landing/Hero';
 import Section from './components/landing/Section';
 import Reveal from './components/landing/Reveal';
 import './landing.css';
-
-const LANGUAGES = [
-  { code: 'en', label: 'English', flag: '🇬🇧' },
-  { code: 'sw', label: 'Kiswahili', flag: '🇰🇪' },
-  { code: 'fr', label: 'Français', flag: '🇫🇷' },
-  { code: 'es', label: 'Español', flag: '🇪🇸' },
-  { code: 'pt', label: 'Português', flag: '🇧🇷' },
-  { code: 'de', label: 'Deutsch', flag: '🇩🇪' },
-  { code: 'ar', label: 'العربية', flag: '🇸🇦' },
-  { code: 'hi', label: 'हिन्दी', flag: '🇮🇳' },
-  { code: 'zh', label: '中文', flag: '🇨🇳' },
-  { code: 'ru', label: 'Русский', flag: '🇷🇺' },
-];
+import { useLanguage, LOCALES } from '@/lib/i18n';
 
 export default function LandingPage(): ReactElement {
-  const [lang, setLang] = useState('en');
+  const { lang, setLang, t } = useLanguage();
   const [langOpen, setLangOpen] = useState(false);
 
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('gh_lang');
-      if (saved && LANGUAGES.some(l => l.code === saved)) {
-        setLang(saved);
-      } else {
-        const nav = navigator.language.slice(0, 2);
-        if (LANGUAGES.some(l => l.code === nav)) setLang(nav);
-      }
-    } catch { /* ignore */ }
-  }, []);
-
-  const pickLang = (code: string) => {
+  const pickLang = (code: any) => {
     setLang(code);
     setLangOpen(false);
-    try { localStorage.setItem('gh_lang', code); } catch { /* ignore */ }
   };
 
-  const currentLang = LANGUAGES.find(l => l.code === lang) || LANGUAGES[0];
+  const currentLang = LOCALES.find(l => l.code === lang) || LOCALES[0];
 
   return (
     <div style={{ background: 'var(--bg)', color: 'var(--text)', overflowX: 'hidden' }}>
 
-      {/* ─── Floating language selector ─── */}
+      {/* Floating language selector */}
       <div style={{ position: 'fixed', top: 12, right: 12, zIndex: 300 }}>
         <div style={{ position: 'relative' }}>
           <button
@@ -61,17 +36,10 @@ export default function LandingPage(): ReactElement {
             onClick={() => setLangOpen(v => !v)}
             className="landing-btn"
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              background: 'var(--surface)',
-              border: '1px solid var(--border-strong)',
-              borderRadius: 10,
-              padding: '8px 12px',
-              color: 'var(--text)',
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: 'var(--surface)', border: '1px solid var(--border-strong)',
+              borderRadius: 10, padding: '8px 12px', color: 'var(--text)',
+              fontSize: 12, fontWeight: 700, cursor: 'pointer',
             }}
           >
             <Globe size={13} />
@@ -81,37 +49,24 @@ export default function LandingPage(): ReactElement {
           {langOpen && (
             <div
               style={{
-                position: 'absolute',
-                top: '110%',
-                right: 0,
-                marginTop: 6,
-                background: 'var(--surface)',
-                border: '1px solid var(--border-strong)',
-                borderRadius: 12,
-                overflow: 'hidden',
-                zIndex: 310,
-                minWidth: 180,
+                position: 'absolute', top: '110%', right: 0, marginTop: 6,
+                background: 'var(--surface)', border: '1px solid var(--border-strong)',
+                borderRadius: 12, overflow: 'hidden', zIndex: 310, minWidth: 180,
                 boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
               }}
             >
-              {LANGUAGES.map(l => (
+              {LOCALES.map(l => (
                 <button
                   key={l.code}
                   type="button"
                   onClick={() => pickLang(l.code)}
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    width: '100%',
-                    padding: '9px 14px',
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    width: '100%', padding: '9px 14px',
                     background: lang === l.code ? 'var(--brand-dim)' : 'transparent',
                     border: 'none',
                     color: lang === l.code ? 'var(--brand)' : 'var(--text)',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    textAlign: 'left',
+                    fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'left',
                   }}
                 >
                   <span>{l.flag}</span>
@@ -123,14 +78,14 @@ export default function LandingPage(): ReactElement {
         </div>
       </div>
 
-      {/* ─── 1. HERO ─── */}
+      {/* 1. HERO */}
       <Hero />
 
-      {/* ─── 2. VALUE PROP ─── */}
+      {/* 2. VALUE PROP */}
       <Section
-        eyebrow="Built for winners worldwide"
-        title="Serious signals. Instant payouts. Global reach."
-        subtitle="GlobalHub is where expert sports analysis meets modern fintech. Pick a signal, pay once, watch it win — and withdraw your earnings within minutes."
+        eyebrow={t('value.eyebrow')}
+        title={t('value.title')}
+        subtitle={t('value.subtitle')}
         align="center"
       >
         <div
@@ -142,9 +97,9 @@ export default function LandingPage(): ReactElement {
           }}
         >
           {[
-            { icon: Shield, title: 'Verified signals', text: 'Every signal is analyzed by professionals before publishing.' },
-            { icon: Clock, title: 'Fast payouts', text: 'Withdraw via M-Pesa, bank, or PayPal within 30 minutes.' },
-            { icon: Globe, title: 'Worldwide access', text: 'Available in 100+ countries with local payment methods.' },
+            { icon: Shield, title: t('value.f1.title'), text: t('value.f1.text') },
+            { icon: Clock, title: t('value.f2.title'), text: t('value.f2.text') },
+            { icon: Globe, title: t('value.f3.title'), text: t('value.f3.text') },
           ].map((f, i) => {
             const Icon = f.icon;
             return (
@@ -152,23 +107,15 @@ export default function LandingPage(): ReactElement {
                 <div
                   className="landing-card-hover"
                   style={{
-                    background: 'var(--bg-subtle)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 16,
-                    padding: 24,
-                    height: '100%',
+                    background: 'var(--bg-subtle)', border: '1px solid var(--border)',
+                    borderRadius: 16, padding: 24, height: '100%',
                   }}
                 >
                   <div
                     style={{
-                      width: 42,
-                      height: 42,
-                      background: 'var(--brand-dim)',
-                      borderRadius: 12,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      marginBottom: 16,
+                      width: 42, height: 42, background: 'var(--brand-dim)',
+                      borderRadius: 12, display: 'flex',
+                      alignItems: 'center', justifyContent: 'center', marginBottom: 16,
                     }}
                   >
                     <Icon size={20} color="var(--brand)" />
@@ -186,13 +133,13 @@ export default function LandingPage(): ReactElement {
         </div>
       </Section>
 
-      {/* ─── 3. FOOTBALL ─── */}
+      {/* 3. FOOTBALL */}
       <Section
         id="football"
         variant="elevated"
-        eyebrow="Football Intelligence"
-        title="Expert football signals, verified daily"
-        subtitle="Access premium match analysis across major leagues. Each signal includes entry, exit, and stake guidance — backed by 94% historical accuracy."
+        eyebrow={t('football.eyebrow')}
+        title={t('football.title')}
+        subtitle={t('football.subtitle')}
       >
         <div
           style={{
@@ -205,20 +152,16 @@ export default function LandingPage(): ReactElement {
           <Reveal>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
               {[
-                'Live matches from Premier League, La Liga, Serie A, and more',
-                'Entry, exit, and stake guidance on every signal',
-                'Updates pushed instantly when a signal goes live',
-                'Refunded if the signal does not perform',
+                t('football.b1'),
+                t('football.b2'),
+                t('football.b3'),
+                t('football.b4'),
               ].map(item => (
                 <div
                   key={item}
                   style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: 12,
-                    color: 'var(--text-body)',
-                    fontSize: 15,
-                    lineHeight: 1.6,
+                    display: 'flex', alignItems: 'flex-start', gap: 12,
+                    color: 'var(--text-body)', fontSize: 15, lineHeight: 1.6,
                   }}
                 >
                   <Check size={18} color="var(--brand)" style={{ marginTop: 3, flexShrink: 0 }} />
@@ -229,21 +172,14 @@ export default function LandingPage(): ReactElement {
                 href="/football"
                 className="landing-btn"
                 style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  background: 'var(--brand)',
-                  color: '#000',
-                  padding: '13px 22px',
-                  borderRadius: 11,
-                  fontWeight: 900,
-                  fontSize: 14,
-                  textDecoration: 'none',
-                  width: 'fit-content',
-                  marginTop: 8,
+                  display: 'inline-flex', alignItems: 'center', gap: 8,
+                  background: 'var(--brand)', color: '#000',
+                  padding: '13px 22px', borderRadius: 11,
+                  fontWeight: 900, fontSize: 14, textDecoration: 'none',
+                  width: 'fit-content', marginTop: 8,
                 }}
               >
-                Browse Football Signals
+                {t('football.cta')}
                 <ArrowRight size={14} />
               </Link>
             </div>
@@ -252,15 +188,11 @@ export default function LandingPage(): ReactElement {
           <Reveal delay={150}>
             <div
               style={{
-                position: 'relative',
-                aspectRatio: '4 / 3',
-                borderRadius: 20,
-                overflow: 'hidden',
+                position: 'relative', aspectRatio: '4 / 3',
+                borderRadius: 20, overflow: 'hidden',
                 border: '1px solid var(--border)',
                 background: 'var(--grad-surface)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}
             >
               <Image
@@ -273,27 +205,24 @@ export default function LandingPage(): ReactElement {
               />
               <div
                 style={{
-                  position: 'relative',
-                  zIndex: 1,
-                  color: 'var(--text-dim)',
-                  fontSize: 13,
-                  textAlign: 'center',
-                  padding: 20,
+                  position: 'relative', zIndex: 1,
+                  color: 'var(--text-dim)', fontSize: 13,
+                  textAlign: 'center', padding: 20,
                 }}
               >
-                Football Signals
+                {t('football.imageCaption')}
               </div>
             </div>
           </Reveal>
         </div>
       </Section>
 
-      {/* ─── 4. AVIATOR ─── */}
+      {/* 4. AVIATOR */}
       <Section
         id="aviator"
-        eyebrow="Aviator Experience"
-        title="Play the crash, ride the multiplier"
-        subtitle="Real-time Aviator game with instant cashout. Our signals help you decide when to take off and when to bail."
+        eyebrow={t('aviator.eyebrow')}
+        title={t('aviator.title')}
+        subtitle={t('aviator.subtitle')}
       >
         <div
           style={{
@@ -306,15 +235,11 @@ export default function LandingPage(): ReactElement {
           <Reveal>
             <div
               style={{
-                position: 'relative',
-                aspectRatio: '4 / 3',
-                borderRadius: 20,
-                overflow: 'hidden',
+                position: 'relative', aspectRatio: '4 / 3',
+                borderRadius: 20, overflow: 'hidden',
                 border: '1px solid var(--border)',
                 background: 'var(--grad-surface)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}
             >
               <Image
@@ -327,15 +252,12 @@ export default function LandingPage(): ReactElement {
               />
               <div
                 style={{
-                  position: 'relative',
-                  zIndex: 1,
-                  color: 'var(--text-dim)',
-                  fontSize: 13,
-                  textAlign: 'center',
-                  padding: 20,
+                  position: 'relative', zIndex: 1,
+                  color: 'var(--text-dim)', fontSize: 13,
+                  textAlign: 'center', padding: 20,
                 }}
               >
-                Aviator Game
+                {t('aviator.imageCaption')}
               </div>
             </div>
           </Reveal>
@@ -343,20 +265,16 @@ export default function LandingPage(): ReactElement {
           <Reveal delay={150}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
               {[
-                'Provably fair crash algorithm',
-                'Instant cashout with one tap',
-                'Live multiplayer rounds',
-                'Auto-cashout protects your winnings',
+                t('aviator.b1'),
+                t('aviator.b2'),
+                t('aviator.b3'),
+                t('aviator.b4'),
               ].map(item => (
                 <div
                   key={item}
                   style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: 12,
-                    color: 'var(--text-body)',
-                    fontSize: 15,
-                    lineHeight: 1.6,
+                    display: 'flex', alignItems: 'flex-start', gap: 12,
+                    color: 'var(--text-body)', fontSize: 15, lineHeight: 1.6,
                   }}
                 >
                   <Check size={18} color="#a78bfa" style={{ marginTop: 3, flexShrink: 0 }} />
@@ -367,37 +285,30 @@ export default function LandingPage(): ReactElement {
                 href="/aviator/game"
                 className="landing-btn"
                 style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 8,
+                  display: 'inline-flex', alignItems: 'center', gap: 8,
                   background: 'rgba(139,92,246,0.15)',
                   border: '1px solid rgba(139,92,246,0.4)',
-                  color: '#c4b5fd',
-                  padding: '13px 22px',
-                  borderRadius: 11,
-                  fontWeight: 900,
-                  fontSize: 14,
-                  textDecoration: 'none',
-                  width: 'fit-content',
-                  marginTop: 8,
+                  color: '#c4b5fd', padding: '13px 22px',
+                  borderRadius: 11, fontWeight: 900, fontSize: 14,
+                  textDecoration: 'none', width: 'fit-content', marginTop: 8,
                 }}
               >
                 <Zap size={14} />
-                Play Aviator
+                {t('aviator.cta')}
               </Link>
             </div>
           </Reveal>
         </div>
       </Section>
 
-      {/* ─── 5. EVENTS & TICKETS ─── */}
+      {/* 5. EVENTS */}
       <Section
         id="events"
         variant="elevated"
         align="center"
-        eyebrow="Events & Tickets"
-        title="Book tickets to live events"
-        subtitle="Concerts, sports, and festivals — buy securely with global payment options."
+        eyebrow={t('events.eyebrow')}
+        title={t('events.title')}
+        subtitle={t('events.subtitle')}
       >
         <Reveal>
           <div
@@ -408,9 +319,9 @@ export default function LandingPage(): ReactElement {
             }}
           >
             {[
-              { icon: Ticket, title: 'Instant tickets', text: 'QR codes delivered to your phone.' },
-              { icon: Shield, title: 'Secure payments', text: 'Paystack protects every transaction.' },
-              { icon: Clock, title: 'Fast check-in', text: 'Scan-and-go entry at the gate.' },
+              { icon: Ticket, title: t('events.f1.title'), text: t('events.f1.text') },
+              { icon: Shield, title: t('events.f2.title'), text: t('events.f2.text') },
+              { icon: Clock, title: t('events.f3.title'), text: t('events.f3.text') },
             ].map((f, i) => {
               const Icon = f.icon;
               return (
@@ -418,12 +329,8 @@ export default function LandingPage(): ReactElement {
                   <div
                     className="landing-card-hover"
                     style={{
-                      background: 'var(--bg-subtle)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 14,
-                      padding: 22,
-                      height: '100%',
-                      textAlign: 'left',
+                      background: 'var(--bg-subtle)', border: '1px solid var(--border)',
+                      borderRadius: 14, padding: 22, height: '100%', textAlign: 'left',
                     }}
                   >
                     <Icon size={20} color="var(--brand)" style={{ marginBottom: 12 }} />
@@ -444,31 +351,25 @@ export default function LandingPage(): ReactElement {
               href="/tickets"
               className="landing-btn"
               style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
-                background: 'var(--brand)',
-                color: '#000',
-                padding: '13px 22px',
-                borderRadius: 11,
-                fontWeight: 900,
-                fontSize: 14,
-                textDecoration: 'none',
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                background: 'var(--brand)', color: '#000',
+                padding: '13px 22px', borderRadius: 11,
+                fontWeight: 900, fontSize: 14, textDecoration: 'none',
               }}
             >
-              Browse Events
+              {t('events.cta')}
               <ArrowRight size={14} />
             </Link>
           </div>
         </Reveal>
       </Section>
 
-      {/* ─── 6. WALLET & PAYMENTS ─── */}
+      {/* 6. WALLET */}
       <Section
         id="wallet"
-        eyebrow="Wallet & Payments"
-        title="Pay with what you have. Get paid fast."
-        subtitle="Paystack-powered wallet with global payment methods and 30-minute payouts."
+        eyebrow={t('wallet.eyebrow')}
+        title={t('wallet.title')}
+        subtitle={t('wallet.subtitle')}
       >
         <div
           style={{
@@ -481,20 +382,16 @@ export default function LandingPage(): ReactElement {
           <Reveal>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
               {[
-                'Deposit via card, M-Pesa, or bank transfer',
-                'Withdraw to M-Pesa, PayPal, or bank account',
-                'Instant wallet updates — no waiting',
-                'All amounts stored in USD — no conversion fees for you',
+                t('wallet.b1'),
+                t('wallet.b2'),
+                t('wallet.b3'),
+                t('wallet.b4'),
               ].map(item => (
                 <div
                   key={item}
                   style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: 12,
-                    color: 'var(--text-body)',
-                    fontSize: 15,
-                    lineHeight: 1.6,
+                    display: 'flex', alignItems: 'flex-start', gap: 12,
+                    color: 'var(--text-body)', fontSize: 15, lineHeight: 1.6,
                   }}
                 >
                   <Check size={18} color="var(--brand)" style={{ marginTop: 3, flexShrink: 0 }} />
@@ -505,21 +402,14 @@ export default function LandingPage(): ReactElement {
                 href="/account"
                 className="landing-btn"
                 style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  background: 'var(--brand)',
-                  color: '#000',
-                  padding: '13px 22px',
-                  borderRadius: 11,
-                  fontWeight: 900,
-                  fontSize: 14,
-                  textDecoration: 'none',
-                  width: 'fit-content',
-                  marginTop: 8,
+                  display: 'inline-flex', alignItems: 'center', gap: 8,
+                  background: 'var(--brand)', color: '#000',
+                  padding: '13px 22px', borderRadius: 11,
+                  fontWeight: 900, fontSize: 14, textDecoration: 'none',
+                  width: 'fit-content', marginTop: 8,
                 }}
               >
-                Open Wallet
+                {t('wallet.cta')}
                 <ArrowRight size={14} />
               </Link>
             </div>
@@ -528,15 +418,11 @@ export default function LandingPage(): ReactElement {
           <Reveal delay={150}>
             <div
               style={{
-                position: 'relative',
-                aspectRatio: '4 / 3',
-                borderRadius: 20,
-                overflow: 'hidden',
+                position: 'relative', aspectRatio: '4 / 3',
+                borderRadius: 20, overflow: 'hidden',
                 border: '1px solid var(--border)',
                 background: 'var(--grad-surface)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}
             >
               <Image
@@ -549,29 +435,26 @@ export default function LandingPage(): ReactElement {
               />
               <div
                 style={{
-                  position: 'relative',
-                  zIndex: 1,
-                  color: 'var(--text-dim)',
-                  fontSize: 13,
-                  textAlign: 'center',
-                  padding: 20,
+                  position: 'relative', zIndex: 1,
+                  color: 'var(--text-dim)', fontSize: 13,
+                  textAlign: 'center', padding: 20,
                 }}
               >
-                Wallet Dashboard
+                {t('wallet.imageCaption')}
               </div>
             </div>
           </Reveal>
         </div>
       </Section>
 
-      {/* ─── 7. GLOBAL ─── */}
+      {/* 7. GLOBAL */}
       <Section
         id="global"
         variant="elevated"
         align="center"
-        eyebrow="Global"
-        title="Available in 100+ countries"
-        subtitle="Wherever you are, GlobalHub works. Multiple languages, local payment methods, and 24/7 support."
+        eyebrow={t('global.eyebrow')}
+        title={t('global.title')}
+        subtitle={t('global.subtitle')}
       >
         <Reveal>
           <div
@@ -583,19 +466,14 @@ export default function LandingPage(): ReactElement {
               margin: '0 auto',
             }}
           >
-            {LANGUAGES.map(l => (
+            {LOCALES.map(l => (
               <div
                 key={l.code}
                 style={{
-                  background: 'var(--bg-subtle)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 10,
-                  padding: '10px 12px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  fontSize: 13,
-                  color: 'var(--text-body)',
+                  background: 'var(--bg-subtle)', border: '1px solid var(--border)',
+                  borderRadius: 10, padding: '10px 12px',
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  fontSize: 13, color: 'var(--text-body)',
                 }}
               >
                 <span>{l.flag}</span>
@@ -606,7 +484,7 @@ export default function LandingPage(): ReactElement {
         </Reveal>
       </Section>
 
-      {/* ─── 8. FINAL CTA ─── */}
+      {/* 8. FINAL CTA */}
       <Section align="center" maxWidth={800}>
         <Reveal>
           <div
@@ -619,7 +497,7 @@ export default function LandingPage(): ReactElement {
             }}
           >
             <h2 className="landing-h2" style={{ color: 'var(--text)', marginBottom: 16 }}>
-              Ready to win daily?
+              {t('cta.title')}
             </h2>
             <p
               className="landing-body"
@@ -629,33 +507,28 @@ export default function LandingPage(): ReactElement {
                 margin: '0 auto 32px',
               }}
             >
-              Create a free account in 30 seconds. No subscription, no hidden fees.
+              {t('cta.subtitle')}
             </p>
             <Link
               href="/register"
               className="landing-btn"
               style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 8,
+                display: 'inline-flex', alignItems: 'center', gap: 8,
                 background: 'linear-gradient(135deg,#22c55e,#16a34a)',
-                color: '#000',
-                padding: '15px 30px',
-                borderRadius: 12,
-                fontWeight: 900,
-                fontSize: 16,
+                color: '#000', padding: '15px 30px',
+                borderRadius: 12, fontWeight: 900, fontSize: 16,
                 textDecoration: 'none',
                 boxShadow: '0 10px 30px rgba(34,197,94,0.35)',
               }}
             >
-              Create Free Account
+              {t('cta.button')}
               <ArrowRight size={16} />
             </Link>
           </div>
         </Reveal>
       </Section>
 
-      {/* ─── 9. FOOTER ─── */}
+      {/* 9. FOOTER */}
       <footer
         style={{
           borderTop: '1px solid var(--border)',
@@ -677,13 +550,9 @@ export default function LandingPage(): ReactElement {
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
               <div
                 style={{
-                  width: 32,
-                  height: 32,
-                  background: 'var(--grad-brand)',
-                  borderRadius: 8,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  width: 32, height: 32, background: 'var(--grad-brand)',
+                  borderRadius: 8, display: 'flex',
+                  alignItems: 'center', justifyContent: 'center',
                 }}
               >
                 <span style={{ color: '#000', fontWeight: 900, fontSize: 13 }}>GH</span>
@@ -693,31 +562,27 @@ export default function LandingPage(): ReactElement {
               </span>
             </div>
             <p style={{ color: 'var(--text-dim)', fontSize: 13, lineHeight: 1.6, maxWidth: 260 }}>
-              Expert football analysis and Aviator signals. Trusted by thousands of winners
-              across 100+ countries.
+              {t('footer.tagline')}
             </p>
           </div>
 
           <div>
             <p style={{ color: 'var(--text)', fontWeight: 800, fontSize: 13, marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              Product
+              {t('footer.product')}
             </p>
             {[
-              { label: 'Football Signals', href: '/football' },
-              { label: 'Aviator Signals', href: '/aviator' },
-              { label: 'Play Aviator', href: '/aviator/game' },
-              { label: 'Marketplace', href: '/marketplace' },
-              { label: 'Tickets', href: '/tickets' },
+              { label: t('nav.football'), href: '/football' },
+              { label: t('nav.aviator'), href: '/aviator' },
+              { label: t('nav.playAviator'), href: '/aviator/game' },
+              { label: t('nav.marketplace'), href: '/marketplace' },
+              { label: t('nav.terms'), href: '/tickets' },
             ].map(l => (
               <Link
                 key={l.href}
                 href={l.href}
                 style={{
-                  display: 'block',
-                  color: 'var(--text-muted)',
-                  fontSize: 13,
-                  textDecoration: 'none',
-                  marginBottom: 10,
+                  display: 'block', color: 'var(--text-muted)',
+                  fontSize: 13, textDecoration: 'none', marginBottom: 10,
                 }}
               >
                 {l.label}
@@ -727,23 +592,19 @@ export default function LandingPage(): ReactElement {
 
           <div>
             <p style={{ color: 'var(--text)', fontWeight: 800, fontSize: 13, marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              Company
+              {t('footer.company')}
             </p>
             {[
-              { label: 'Become a Provider', href: '/become-provider' },
-              { label: 'Support', href: '/support' },
-              { label: 'FAQ', href: '/faq' },
-              
+              { label: t('nav.becomeProvider'), href: '/become-provider' },
+              { label: t('nav.support'), href: '/support' },
+              { label: t('nav.faq'), href: '/faq' },
             ].map(l => (
               <Link
                 key={l.href}
                 href={l.href}
                 style={{
-                  display: 'block',
-                  color: 'var(--text-muted)',
-                  fontSize: 13,
-                  textDecoration: 'none',
-                  marginBottom: 10,
+                  display: 'block', color: 'var(--text-muted)',
+                  fontSize: 13, textDecoration: 'none', marginBottom: 10,
                 }}
               >
                 {l.label}
@@ -753,22 +614,19 @@ export default function LandingPage(): ReactElement {
 
           <div>
             <p style={{ color: 'var(--text)', fontWeight: 800, fontSize: 13, marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              Legal
+              {t('footer.legal')}
             </p>
             {[
-              { label: 'Terms', href: '/terms' },
-              { label: 'Privacy', href: '/privacy' },
-              { label: 'Responsible Gaming', href: '/responsible-gaming' },
+              { label: t('nav.terms'), href: '/terms' },
+              { label: t('nav.privacy'), href: '/privacy' },
+              { label: t('nav.responsibleGaming'), href: '/responsible-gaming' },
             ].map(l => (
               <Link
                 key={l.href}
                 href={l.href}
                 style={{
-                  display: 'block',
-                  color: 'var(--text-muted)',
-                  fontSize: 13,
-                  textDecoration: 'none',
-                  marginBottom: 10,
+                  display: 'block', color: 'var(--text-muted)',
+                  fontSize: 13, textDecoration: 'none', marginBottom: 10,
                 }}
               >
                 {l.label}
@@ -792,9 +650,9 @@ export default function LandingPage(): ReactElement {
             fontSize: 12,
           }}
         >
-          <span>© {new Date().getFullYear()} GlobalHub. All rights reserved.</span>
+          <span>© {new Date().getFullYear()} {t('footer.copyright')}</span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <Globe size={12} /> 100+ countries · 10 languages
+            <Globe size={12} /> {t('footer.countries')}
           </span>
         </div>
       </footer>

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "../lib/theme.css";
 import { AuthProvider } from "@/context/AuthContext";
+import { LanguageProvider } from "@/lib/i18n";
 import { CartProvider } from "@/lib/cart";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
@@ -63,6 +64,7 @@ export default async function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
             <body>
+                <LanguageProvider>
         <AuthProvider>
           <CartProvider>
             <NavShell user={user} />
@@ -71,8 +73,9 @@ export default async function RootLayout({
               {children}
             </main>
             <ChatWidget />
-          </CartProvider>
+                    </CartProvider>
         </AuthProvider>
+        </LanguageProvider>
       </body>
     </html>
   );
