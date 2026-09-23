@@ -26,12 +26,12 @@ export async function GET(req: Request) {
       server_seed_hash: 'pending'
     };
 
-    const { data: history } = await admin
-      .from('game_rounds')
-      .select('round_id, crash_point')
-      .eq('status', 'crashed')
-      .order('created_at', { ascending: false })
-      .limit(10);
+       const { data: history } = await admin
+  .from('game_rounds')
+  .select('id, round_number, crash_point')
+  .eq('status', 'crashed')
+  .order('created_at', { ascending: false })
+  .limit(30);
 
     const { data: publicBets } = await admin
       .from('game_bets')

@@ -27,12 +27,10 @@ type RoundState = {
 } | null;
 
 type HistoryItem = {
-  round_id: string;
+  id?: string;
+  round_id?: string;
   round_number: number;
   crash_point: number;
-  server_seed: string;
-  server_seed_hash: string;
-  nonce: number;
 };
 
 type PublicBet = { anonymous_id: string; amount: number; status: string; cashout_at: number | null };
@@ -98,6 +96,57 @@ export default function AviatorGamePage() {
   const [busy, setBusy] = useState<Record<1 | 2, boolean>>({ 1: false, 2: false });
 
   const [multiplier, setMultiplier] = useState(1.0);
+
+  // ── Persist demo state across sessions ──
+  const [hydrated, setHydrated] = useState(false);
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    try {
+      const db = localStorage.getItem('gh_aviator_demo_balance');
+      if (db !== null) setDemoBalance(Number(db) || DEMO_START_BALANCE);
+
+      const ba = localStorage.getItem('gh_aviator_bet_amounts');
+      if (ba) {
+        const parsed = JSON.parse(ba);
+        if (parsed?.[1] !== undefined && parsed?.[2] !== undefined) setBetAmount(parsed);
+      }
+
+      const ac = localStorage.getItem('gh_aviator_auto_cashouts');
+      if (ac) {
+        const parsed = JSON.parse(ac);
+        if (parsed?.[1] !== undefined && parsed?.[2] !== undefined) setAutoCashout(parsed);
+      }
+
+      const am = localStorage.getItem('gh_aviator_account_mode');
+      if (am === 'demo' || am === 'real') setAccountMode(am);
+    } catch { /* ignore */ }
+    setHydrated(true);
+  }, []);
+
+  // Save demo balance when it changes
+  useEffect(() => {
+    if (!hydrated) return;
+    try { localStorage.setItem('gh_aviator_demo_balance', String(demoBalance)); } catch { /* ignore */ }
+  }, [demoBalance, hydrated]);
+
+  // Save bet amounts when they change
+  useEffect(() => {
+    if (!hydrated) return;
+    try { localStorage.setItem('gh_aviator_bet_amounts', JSON.stringify(betAmount)); } catch { /* ignore */ }
+  }, [betAmount, hydrated]);
+
+  // Save auto-cashout values when they change
+  useEffect(() => {
+    if (!hydrated) return;
+    try { localStorage.setItem('gh_aviator_auto_cashouts', JSON.stringify(autoCashout)); } catch { /* ignore */ }
+  }, [autoCashout, hydrated]);
+
+  // Save account mode when it changes
+  useEffect(() => {
+    if (!hydrated) return;
+    try { localStorage.setItem('gh_aviator_account_mode', accountMode); } catch { /* ignore */ }
+  }, [accountMode, hydrated]);
   const [freezeCrash, setFreezeCrash] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -116,7 +165,7 @@ export default function AviatorGamePage() {
   const realAutoFiredRef = useRef<Record<1 | 2, boolean>>({ 1: false, 2: false });
 const settleStartRef = useRef<number | null>(null);
 
-  const activeBalance = accountMode === 'demo' ? demoBalance : realBalance;
+  const activeBalance = accountMode === 'demo' ? demoBalance : aviatorBalance;
   const bets = accountMode === 'demo' ? demoBets : realBets;
 
   const playSound = useCallback((type: 'takeoff' | 'crash' | 'cashout') => {
@@ -214,8 +263,8 @@ const settleStartRef = useRef<number | null>(null);
       setBettingProgress(0);
       return;
     }
-    const endsAt = new Date(round.betting_ends_at).getTime();
-    const startAt = endsAt - 10000; // betting window is typically 10s
+        const endsAt = new Date(round.betting_ends_at).getTime();
+    const startAt = endsAt - 30000; // betting window = 30s (matches game_settings)
     const id = setInterval(() => {
       const now = Date.now();
       const p = Math.max(0, Math.min(1, 1 - (endsAt - now) / (endsAt - startAt)));
@@ -368,9 +417,10 @@ const settleStartRef = useRef<number | null>(null);
     }
     setBusy(b => ({ ...b, [slot]: false }));
   };
-  const resetDemo = () => {
+   const resetDemo = () => {
     setDemoBalance(DEMO_START_BALANCE);
     setDemoBets({ 1: null, 2: null });
+    try { localStorage.removeItem('gh_aviator_demo_balance'); } catch { /* ignore */ }
   };
 
   // ============================================================
@@ -612,12 +662,22 @@ const settleStartRef = useRef<number | null>(null);
     );
   }
 
-      // ── Render a bet slot ──
+        // ── Render a bet slot ──
   const renderSlot = (slot: 1 | 2) => {
     const bet = bets[slot];
     const realBet = accountMode === 'real' ? realBets[slot] : null;
     const isBetting = round?.status === 'betting';
-    const betDisabled = !isBetting || !!bet;
+    const isActive = bet?.status === 'active';
+    const isSettled = bet?.status === 'cashed_out' || bet?.status === 'lost';
+    const betDisabled = isActive;
+
+    // Won/lost amount for the compact chip
+    const wonAmount = accountMode === 'demo'
+      ? (demoBets[slot]?.payout ?? 0)
+      : (realBets[slot]?.payout_usd ?? 0);
+
+    // Armed auto-cashout value (for the AUTO badge overlay)
+    const armedAuto = realBet?.auto_cashout_multiplier ?? (demoBets[slot]?.autoCashout ?? null);
 
     return (
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border-strong)', borderRadius: 16, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -626,7 +686,8 @@ const settleStartRef = useRef<number | null>(null);
           <span style={{ color: 'var(--text-dim)', fontSize: 10 }}>Min ${MIN_BET}</span>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '34px 1fr 34px auto', gap: 6, alignItems: 'stretch' }}>
+        {/* Amount row: − | input | + | [won/lost chip] | [action button] */}
+        <div style={{ display: 'grid', gridTemplateColumns: '34px 1fr 34px auto auto', gap: 6, alignItems: 'stretch' }}>
           <button
             type="button"
             onClick={() => setBetAmount(a => ({ ...a, [slot]: String(Math.max(MIN_BET, (Number(betAmount[slot]) || 0) - 10)) }))}
@@ -638,6 +699,14 @@ const settleStartRef = useRef<number | null>(null);
             type="number"
             value={betAmount[slot]}
             onChange={e => setBetAmount(a => ({ ...a, [slot]: e.target.value }))}
+            onBlur={() => {
+              const n = Number(betAmount[slot]);
+              const cap = Math.min(MAX_BET, activeBalance ?? MAX_BET);
+              const clamped = !Number.isFinite(n) || n <= 0
+                ? MIN_BET
+                : Math.max(MIN_BET, Math.min(cap, n));
+              setBetAmount(a => ({ ...a, [slot]: String(clamped) }));
+            }}
             disabled={betDisabled}
             className="form-input"
             style={{ fontSize: 15, fontWeight: 900, fontFamily: 'monospace', textAlign: 'center', padding: '10px 6px' }}
@@ -650,49 +719,119 @@ const settleStartRef = useRef<number | null>(null);
             style={{ background: 'var(--bg)', border: '1px solid var(--border-strong)', borderRadius: 10, color: 'var(--text)', fontSize: 18, fontWeight: 900, cursor: betDisabled ? 'not-allowed' : 'pointer', opacity: betDisabled ? 0.4 : 1 }}
           >+</button>
 
-          {bet?.status === 'active' ? (
+          {/* Compact Won/Lost chip — only when settled */}
+          {isSettled && (
+            <div style={{
+              padding: '8px 10px',
+              background: bet!.status === 'cashed_out' ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.1)',
+              border: `1px solid ${bet!.status === 'cashed_out' ? 'rgba(34,197,94,0.4)' : 'rgba(239,68,68,0.3)'}`,
+              color: bet!.status === 'cashed_out' ? '#4ade80' : '#f87171',
+              borderRadius: 10,
+              fontSize: 11,
+              fontWeight: 800,
+              whiteSpace: 'nowrap',
+              display: 'flex',
+              alignItems: 'center',
+            }}>
+              {bet!.status === 'cashed_out' ? `Won $${wonAmount.toFixed(2)}` : 'Lost'}
+            </div>
+          )}
+
+          {/* Action button — always visible when betting is open */}
+          {isActive ? (
             isFlying ? (
-              <button type="button" onClick={() => cashout(slot)} disabled={busy[slot]} style={{ padding: '10px 18px', background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: 'black', border: 'none', borderRadius: 10, fontWeight: 900, fontSize: 13, cursor: busy[slot] ? 'wait' : 'pointer', whiteSpace: 'nowrap' }}>
+              <button
+                type="button"
+                onClick={() => cashout(slot)}
+                disabled={busy[slot]}
+                style={{ padding: '10px 18px', background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: 'black', border: 'none', borderRadius: 10, fontWeight: 900, fontSize: 13, cursor: busy[slot] ? 'wait' : 'pointer', whiteSpace: 'nowrap' }}
+              >
                 {busy[slot] ? '...' : 'CASH $' + (accountMode === 'demo' ? (bet as DemoBet)!.amount * multiplier : (realBet as RealBet)!.amount_usd * multiplier).toFixed(2)}
               </button>
             ) : (
-              <button type="button" onClick={() => cancelBet(slot)} disabled={busy[slot]} style={{ padding: '10px 18px', background: 'linear-gradient(135deg,#ef4444,#b91c1c)', color: 'white', border: 'none', borderRadius: 10, fontWeight: 900, fontSize: 13, cursor: busy[slot] ? 'wait' : 'pointer', whiteSpace: 'nowrap' }}>
+              <button
+                type="button"
+                onClick={() => cancelBet(slot)}
+                disabled={busy[slot]}
+                style={{ padding: '10px 18px', background: 'linear-gradient(135deg,#ef4444,#b91c1c)', color: 'white', border: 'none', borderRadius: 10, fontWeight: 900, fontSize: 13, cursor: busy[slot] ? 'wait' : 'pointer', whiteSpace: 'nowrap' }}
+              >
                 {busy[slot] ? '...' : 'CANCEL'}
               </button>
             )
-          ) : bet?.status === 'cashed_out' ? (
-            <div style={{ padding: '10px 14px', background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.4)', color: '#4ade80', borderRadius: 10, textAlign: 'center', fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap' }}>
-              Won ${(accountMode === 'demo' ? (demoBets[slot]?.payout ?? 0) : (realBets[slot]?.payout_usd ?? 0)).toFixed(2)}
-            </div>
-          ) : bet?.status === 'lost' ? (
-            <div style={{ padding: '10px 14px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', borderRadius: 10, textAlign: 'center', fontSize: 12, fontWeight: 800, whiteSpace: 'nowrap' }}>Lost</div>
-          ) : (
-            <button type="button" onClick={() => placeBet(slot)} disabled={busy[slot] || !isBetting} style={{ padding: '10px 22px', background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: 'black', border: 'none', borderRadius: 10, fontWeight: 900, fontSize: 14, cursor: busy[slot] || !isBetting ? 'not-allowed' : 'pointer', opacity: busy[slot] || !isBetting ? 0.5 : 1, whiteSpace: 'nowrap' }}>
+          ) : isBetting ? (
+            <button
+              type="button"
+              onClick={() => placeBet(slot)}
+              disabled={busy[slot]}
+              style={{ padding: '10px 22px', background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: 'black', border: 'none', borderRadius: 10, fontWeight: 900, fontSize: 14, cursor: busy[slot] ? 'not-allowed' : 'pointer', opacity: busy[slot] ? 0.5 : 1, whiteSpace: 'nowrap' }}
+            >
               {busy[slot] ? '...' : 'BET'}
             </button>
+          ) : (
+            <div style={{ padding: '10px 14px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)', color: 'var(--text-dim)', borderRadius: 10, textAlign: 'center', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
+              Waiting…
+            </div>
           )}
         </div>
 
+        {/* Quick amount chips */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
           {[10, 50, 100].map(delta => (
-            <button key={delta} type="button" onClick={() => setBetAmount(a => ({ ...a, [slot]: String(Math.min(MAX_BET, (Number(a[slot]) || 0) + delta)) }))} disabled={betDisabled} style={{ padding: '6px 0', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-muted)', fontSize: 11, fontWeight: 700, cursor: betDisabled ? 'not-allowed' : 'pointer', opacity: betDisabled ? 0.4 : 1 }}>
+            <button
+              key={delta}
+              type="button"
+              onClick={() => setBetAmount(a => ({ ...a, [slot]: String(Math.min(MAX_BET, (Number(a[slot]) || 0) + delta)) }))}
+              disabled={betDisabled}
+              style={{ padding: '6px 0', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-muted)', fontSize: 11, fontWeight: 700, cursor: betDisabled ? 'not-allowed' : 'pointer', opacity: betDisabled ? 0.4 : 1 }}
+            >
               +{delta}
             </button>
           ))}
-          <button type="button" onClick={() => setBetAmount(a => ({ ...a, [slot]: String(Math.min(MAX_BET, activeBalance ?? MAX_BET)) }))} disabled={betDisabled} style={{ padding: '6px 0', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-muted)', fontSize: 11, fontWeight: 800, cursor: betDisabled ? 'not-allowed' : 'pointer', opacity: betDisabled ? 0.4 : 1 }}>
+          <button
+            type="button"
+            onClick={() => setBetAmount(a => ({ ...a, [slot]: String(Math.min(MAX_BET, activeBalance ?? MAX_BET)) }))}
+            disabled={betDisabled}
+            style={{ padding: '6px 0', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-muted)', fontSize: 11, fontWeight: 800, cursor: betDisabled ? 'not-allowed' : 'pointer', opacity: betDisabled ? 0.4 : 1 }}
+          >
             MAX
           </button>
         </div>
 
-        <input
-          type="text"
-          placeholder="Auto cash-out (e.g. 2.00)"
-          value={autoCashout[slot]}
-          onChange={e => setAutoCashout(a => ({ ...a, [slot]: e.target.value }))}
-          disabled={betDisabled}
-          className="form-input"
-          style={{ fontSize: 12, padding: '8px 10px' }}
-        />
+        {/* Auto cash-out input with AUTO badge */}
+        <div style={{ position: 'relative' }}>
+          <input
+            type="text"
+            inputMode="decimal"
+            placeholder="Auto cash-out (e.g. 2.00)"
+            value={autoCashout[slot]}
+            onChange={e => setAutoCashout(a => ({ ...a, [slot]: e.target.value }))}
+            disabled={betDisabled}
+            className="form-input"
+            style={{
+              fontSize: 12,
+              padding: '8px 10px',
+              paddingRight: armedAuto ? 76 : 10,
+            }}
+          />
+          {armedAuto != null && isActive && (
+            <span style={{
+              position: 'absolute',
+              right: 8,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              background: 'rgba(34,197,94,0.15)',
+              color: '#4ade80',
+              border: '1px solid rgba(34,197,94,0.4)',
+              borderRadius: 6,
+              fontSize: 10,
+              fontWeight: 800,
+              padding: '2px 6px',
+              pointerEvents: 'none',
+            }}>
+              AUTO {Number(armedAuto).toFixed(2)}x
+            </span>
+          )}
+        </div>
       </div>
     );
   };
@@ -849,9 +988,9 @@ const settleStartRef = useRef<number | null>(null);
               <Award className="w-4 h-4" /> Recent Rounds
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {history.slice(0, 18).map(h => (
-                <span
-                  key={h.round_id}
+              {history.slice(0, 30).map(h => (
+  <span
+    key={h.id ?? h.round_number}
                   style={{
                     padding: '4px 9px', borderRadius: 8, fontSize: 11, fontWeight: 800,
                     fontFamily: 'monospace',

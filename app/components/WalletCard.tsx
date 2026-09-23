@@ -11,6 +11,15 @@ import { toLocalAmount, formatAmount } from '@/lib/currency';
 import WalletWithdrawForm, { type WithdrawFormData } from './WalletWithdrawForm';
 import AviatorTransferModal from './wallet/AviatorTransferModal';
 
+// ── Internal transaction types that must NEVER be shown to the customer ──
+const INTERNAL_TX_TYPES = new Set([
+  'correction',
+  'admin_adjustment',
+  'admin_correction',
+  'manual_fix',
+  'internal',
+]);
+
 type Wallet = {
   id: string;
   available_balance: number;
@@ -72,7 +81,11 @@ export default function WalletCard({ userId, userEmail }: Props): ReactElement {
         const data = await res.json();
         setWallet(data.wallet);
         setAviatorBalance(Number(data.wallet?.aviator_balance ?? 0));
-        setTransactions(data.transactions || []);
+
+        // Filter out internal transaction types — customers must never see corrections/adjustments
+        const rawTx: Transaction[] = data.transactions || [];
+        setTransactions(rawTx.filter(tx => !INTERNAL_TX_TYPES.has(tx.type)));
+
         setNotifications(data.notifications || []);
       }
     } catch { /* silent */ }
@@ -200,10 +213,27 @@ export default function WalletCard({ userId, userEmail }: Props): ReactElement {
   };
 
   // ── Helpers ──
-  const txColor = (type: string, status: string) =>
-    status === 'failed' || status === 'rejected' ? '#f87171'
-      : type === 'deposit' ? '#22c55e'
-        : '#f87171';
+
+  // Friendly labels for transaction types
+  const txLabel = (type: string) => {
+    switch (type) {
+      case 'deposit': return 'Deposit';
+      case 'withdrawal': return 'Withdrawal';
+      case 'transfer': return 'Transfer';
+      case 'crash_bet': return 'Aviator bet';
+      case 'crash_payout': return 'Aviator win';
+      case 'crash_bet_cancelled': return 'Aviator bet cancelled';
+      case 'purchase': return 'Purchase';
+      default: return type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, ' ');
+    }
+  };
+
+  // Colour rule: only failures are red. Everything else: green for credits, neutral for debits.
+  const txColor = (amount: number, status: string) => {
+    if (status === 'failed' || status === 'rejected') return '#f87171';
+    if (status === 'pending') return '#fbbf24';
+    return amount >= 0 ? '#22c55e' : '#9ca3af';
+  };
 
   const statusBadge = (status: string) => ({
     background: status === 'completed' ? 'rgba(34,197,94,0.1)'
@@ -400,17 +430,17 @@ export default function WalletCard({ userId, userEmail }: Props): ReactElement {
               transactions.slice(0, 5).map(tx => (
                 <div key={tx.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid #1a2740' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: tx.type === 'deposit' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}>
-                      {tx.type === 'deposit' ? '↓' : tx.type === 'purchase' ? '🛒' : '↑'}
+                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: tx.amount >= 0 ? 'rgba(34,197,94,0.1)' : 'rgba(107,114,128,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}>
+                      {tx.amount >= 0 ? '↓' : tx.type === 'purchase' ? '🛒' : '↑'}
                     </div>
                     <div>
-                      <p style={{ fontWeight: 600, fontSize: '13px', color: 'white', textTransform: 'capitalize' }}>{tx.type}</p>
+                      <p style={{ fontWeight: 600, fontSize: '13px', color: 'white' }}>{txLabel(tx.type)}</p>
                       <p style={{ color: '#6b7280', fontSize: '11px' }}>{new Date(tx.created_at).toLocaleDateString()}</p>
                     </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <p style={{ fontWeight: 900, fontSize: '13px', fontFamily: 'monospace', color: txColor(tx.type, tx.status) }}>
-                      {tx.type === 'deposit' ? '+' : '-'}${tx.amount.toFixed(2)}
+                    <p style={{ fontWeight: 900, fontSize: '13px', fontFamily: 'monospace', color: txColor(tx.amount, tx.status) }}>
+                      {tx.amount >= 0 ? '+' : '−'}${Math.abs(tx.amount).toFixed(2)}
                     </p>
                     <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '10px', ...statusBadge(tx.status) }}>
                       {tx.status}
@@ -515,18 +545,20 @@ export default function WalletCard({ userId, userEmail }: Props): ReactElement {
                 {transactions.map(tx => (
                   <div key={tx.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid #1a2740' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: tx.type === 'deposit' ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', flexShrink: 0 }}>
-                        {tx.type === 'deposit' ? '↓' : tx.type === 'purchase' ? '🛒' : '↑'}
+                      <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: tx.amount >= 0 ? 'rgba(34,197,94,0.12)' : 'rgba(107,114,128,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', flexShrink: 0 }}>
+                        {tx.amount >= 0 ? '↓' : tx.type === 'purchase' ? '🛒' : '↑'}
                       </div>
                       <div>
-                        <p style={{ fontWeight: 700, fontSize: '13px', color: 'white', textTransform: 'capitalize', marginBottom: '2px' }}>{tx.description || tx.type}</p>
+                        <p style={{ fontWeight: 700, fontSize: '13px', color: 'white', marginBottom: '2px' }}>
+                          {tx.description || txLabel(tx.type)}
+                        </p>
                         <p style={{ color: '#6b7280', fontSize: '11px' }}>{new Date(tx.created_at).toLocaleString()}</p>
                         <p style={{ color: '#374151', fontSize: '10px', fontFamily: 'monospace' }}>{tx.reference}</p>
                       </div>
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <p style={{ fontWeight: 900, fontSize: '14px', fontFamily: 'monospace', color: txColor(tx.type, tx.status) }}>
-                        {tx.type === 'deposit' ? '+' : '-'}${tx.amount.toFixed(2)}
+                      <p style={{ fontWeight: 900, fontSize: '14px', fontFamily: 'monospace', color: txColor(tx.amount, tx.status) }}>
+                        {tx.amount >= 0 ? '+' : '−'}${Math.abs(tx.amount).toFixed(2)}
                       </p>
                       <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '10px', ...statusBadge(tx.status) }}>
                         {tx.status}
