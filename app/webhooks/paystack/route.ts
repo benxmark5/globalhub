@@ -51,11 +51,23 @@ export async function POST(req: Request) {
         }
         break;
       }
-      case 'transfer.success':
-      case 'transfer.failed':
-      case 'transfer.reversed':
-        console.log('[webhook] transfer event received (handled later):', event.event);
+           case 'transfer.success': {
+        const result = await handleTransferSuccess(supabase, event.data);
+        if (!result.ok) {
+          console.error('[webhook] transfer.success handler failed:', result.error);
+          return new NextResponse('Handler failed', { status: 500 });
+        }
         break;
+      }
+      case 'transfer.failed':
+      case 'transfer.reversed': {
+        const result = await handleTransferFailure(supabase, event.data, event.event);
+        if (!result.ok) {
+          console.error('[webhook] transfer failure handler failed:', result.error);
+          return new NextResponse('Handler failed', { status: 500 });
+        }
+        break;
+      }
       default:
         console.log('[webhook] unhandled event:', event.event);
     }
@@ -221,4 +233,78 @@ async function toUSD(
 
   console.error('[webhook] unknown currency:', currency);
   return amount;
+}
+
+// ------------------------------------------------------------
+// transfer.success handler
+// ------------------------------------------------------------
+async function handleTransferSuccess(
+  supabase: ReturnType<typeof createClient>,
+  data: { transfer_code?: string; reference?: string; amount?: number }
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const transferCode = data.transfer_code;
+  if (!transferCode) {
+    return { ok: false, error: 'Missing transfer_code' };
+  }
+
+  const { data: wr } = await supabase
+    .from('withdrawal_requests')
+    .select('id')
+    .eq('paystack_transfer_code', transferCode)
+    .maybeSingle();
+
+  if (!wr) {
+    console.warn('[webhook] no withdrawal for transfer.success', transferCode);
+    return { ok: true }; // nothing to do, not a failure
+  }
+
+  const { error } = await supabase.rpc('treasury_finalize_withdrawal_paid', {
+    p_withdrawal_id: wr.id,
+    p_paystack_transfer_code: transferCode,
+    p_paystack_response: data as unknown as Record<string, unknown>,
+  });
+
+  if (error) {
+    console.error('[webhook] treasury_finalize_withdrawal_paid RPC failed:', error);
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
+}
+
+// ------------------------------------------------------------
+// transfer.failed / transfer.reversed handler
+// ------------------------------------------------------------
+async function handleTransferFailure(
+  supabase: ReturnType<typeof createClient>,
+  data: { transfer_code?: string; reference?: string; reason?: string },
+  eventType: 'transfer.failed' | 'transfer.reversed'
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const transferCode = data.transfer_code;
+  if (!transferCode) {
+    return { ok: false, error: 'Missing transfer_code' };
+  }
+
+  const { data: wr } = await supabase
+    .from('withdrawal_requests')
+    .select('id')
+    .eq('paystack_transfer_code', transferCode)
+    .maybeSingle();
+
+  if (!wr) {
+    console.warn('[webhook] no withdrawal for', eventType, transferCode);
+    return { ok: true };
+  }
+
+  const { error } = await supabase.rpc('treasury_refund_failed_withdrawal', {
+    p_withdrawal_id: wr.id,
+    p_reason: data.reason || eventType,
+    p_paystack_response: data as unknown as Record<string, unknown>,
+    p_reversed: eventType === 'transfer.reversed',
+  });
+
+  if (error) {
+    console.error('[webhook] treasury_refund_failed_withdrawal RPC failed:', error);
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
 }
