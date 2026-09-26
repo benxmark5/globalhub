@@ -42,11 +42,9 @@ export async function POST(req: Request) {
     }
 
     // ── Route FIRST (before dedupe) ──
-    // This ensures we never block a retry before attempting the actual work.
     switch (event.event) {
       case 'charge.success': {
         const result = await handleChargeSuccess(supabase, event.data);
-        // Only mark as processed if the handler succeeded
         if (!result.ok) {
           console.error('[webhook] charge.success handler failed, allowing retry:', result.error);
           return new NextResponse('Handler failed', { status: 500 });
@@ -62,7 +60,7 @@ export async function POST(req: Request) {
         console.log('[webhook] unhandled event:', event.event);
     }
 
-    // ── Record processed event (after successful handling) ──
+    // ── Record processed event ──
     const { error: dedupeError } = await supabase
       .from('payment_events')
       .insert({
@@ -73,7 +71,6 @@ export async function POST(req: Request) {
 
     if (dedupeError && (dedupeError as { code?: string }).code !== '23505') {
       console.error('[webhook] dedupe insert failed:', dedupeError);
-      // Don't fail the whole thing — event was handled
     }
 
     return NextResponse.json({ ok: true });
@@ -85,7 +82,6 @@ export async function POST(req: Request) {
 
 // ------------------------------------------------------------
 // charge.success handler
-// Returns { ok: true } on success, { ok: false, error } on failure.
 // ------------------------------------------------------------
 async function handleChargeSuccess(
   supabase: ReturnType<typeof createClient>,
@@ -105,7 +101,6 @@ async function handleChargeSuccess(
   const purpose = (metadata.purpose as string) || '';
   const userId = (metadata.userId as string) || '';
 
-  // Convert to USD using metadata or FX
   const storedUSD = Number(metadata.amountUSD);
   const amountUSD = Number.isFinite(storedUSD) && storedUSD > 0
     ? Math.round(storedUSD * 100) / 100
@@ -171,10 +166,32 @@ async function handleChargeSuccess(
 
     if (purchaseError) {
       console.error('[webhook] purchases insert failed:', purchaseError);
-      // Non-blocking — signals already activated
     }
 
     console.log('[webhook] signal purchase completed for user:', userId);
+    return { ok: true };
+  }
+
+  // ── TREASURY FUNDING (admin-only) ──
+  if (purpose === 'treasury_funding') {
+    const adminEmail = (metadata.adminEmail as string) || 'system';
+    const cur = ((metadata.currency as string) || 'KES').toUpperCase();
+    const treasuryAmount = Number(metadata.amount) || (amountMinor / 100);
+
+    const { data: result, error } = await supabase.rpc('treasury_fund', {
+      p_currency: cur,
+      p_amount: treasuryAmount,
+      p_reference: reference,
+      p_description: `Treasury funding via Paystack (admin ${adminEmail})`,
+      p_actor: adminEmail,
+    });
+
+    if (error) {
+      console.error('[webhook] treasury_fund RPC failed:', error);
+      return { ok: false, error: `RPC failed: ${error.message}` };
+    }
+
+    console.log('[webhook] treasury funded:', result);
     return { ok: true };
   }
 
