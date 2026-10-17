@@ -1,6 +1,5 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   Trophy, ArrowLeft, ArrowRight, CheckCircle,
@@ -15,9 +14,9 @@ const STEPS = [
   { id: 3, label: 'Service',    icon: Briefcase },
   { id: 4, label: 'Standards',  icon: Shield },
   { id: 5, label: 'Payout',     icon: CreditCard },
-  { id: 6, label: 'Agreement',  icon: FileText },
+  { id: 6, label: 'Identity',   icon: FileText },
+  { id: 7, label: 'Agreement',  icon: CheckCircle },
 ];
-
 const SERVICE_CATEGORIES = [
   'Football Betting Tips', 'Aviator Signals', 'Casino Strategy',
   'Sports Analysis', 'Odds Trading', 'Virtual Sports',
@@ -74,18 +73,27 @@ const INITIAL: FormData = {
 };
 
 export default function OnboardingPage() {
-  const router = useRouter();
   const [step, setStep] = useState(1);
   const [form, setForm] = useState<FormData>(INITIAL);
-  const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // KYC files
+  const [files, setFiles] = useState<{
+    national_id_front: File | null;
+    national_id_back: File | null;
+    proof_of_address: File | null;
+    passport: File | null;
+  }>({
+    national_id_front: null,
+    national_id_back: null,
+    proof_of_address: null,
+    passport: null,
+  });
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
-        setUser(session.user);
         setForm(prev => ({
           ...prev,
           email: session.user.email || '',
@@ -132,7 +140,12 @@ export default function OnboardingPage() {
       if (!form.payout_name.trim()) errs.payout_name = 'Account holder name is required';
       if (!form.payout_identifier.trim()) errs.payout_identifier = 'Payment identifier is required';
     }
-    if (step === 6) {
+        if (step === 6) {
+      if (!files.national_id_front) errs.national_id_front = 'Front of national ID is required';
+      if (!files.national_id_back) errs.national_id_back = 'Back of national ID is required';
+      if (!files.proof_of_address) errs.proof_of_address = 'Proof of address is required';
+    }
+    if (step === 7) {
       if (!form.agree_terms || !form.agree_escrow || !form.agree_fees)
         errs.agreement = 'You must accept all agreements to proceed';
     }
@@ -142,7 +155,7 @@ export default function OnboardingPage() {
 
   const next = () => {
     if (!validateStep()) return;
-    if (step < 6) setStep(s => s + 1);
+    if (step < 7) setStep(s => s + 1);
     else handleSubmit();
   };
 
@@ -154,10 +167,12 @@ export default function OnboardingPage() {
     if (!validateStep()) return;
     setSubmitting(true);
     setErrors({});
-    
+
     try {
-      const applicationPayload = {
-        user_id: user?.id || null,
+      const formData = new FormData();
+
+      // Payload = everything except files
+      formData.append('payload', JSON.stringify({
         full_name: form.full_name,
         display_name: form.display_name,
         email: form.email,
@@ -193,32 +208,25 @@ export default function OnboardingPage() {
         agree_terms: form.agree_terms,
         agree_escrow: form.agree_escrow,
         agree_fees: form.agree_fees,
-        status: 'pending',
-      };
+      }));
 
-      const { error: appError } = await supabase
-        .from('provider_applications')
-        .insert(applicationPayload);
+      // Files
+      if (files.national_id_front) formData.append('file_national_id_front', files.national_id_front);
+      if (files.national_id_back) formData.append('file_national_id_back', files.national_id_back);
+      if (files.proof_of_address) formData.append('file_proof_of_address', files.proof_of_address);
+      if (files.passport) formData.append('file_passport', files.passport);
 
-      if (appError) throw appError;
-
-      try {
-        await supabase.from('activity_feed').insert({
-          type: 'provider_apply',
-          title: '📋 New Provider Application',
-          description: `${form.display_name} applied as ${form.service_category} provider`,
-          country: form.country,
-          country_flag: '📋',
-          metadata: { service: form.service_category, country: form.country }
-        });
-      } catch (feedError) {
-        console.warn("Activity feed fallback trigger:", feedError);
-      }
+      const res = await fetch('/api/onboarding/provider', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Submission failed');
 
       setSubmitted(true);
-    } catch (e: any) {
-      console.error("Submission operational failure:", e);
-      setErrors({ submit: e?.message || 'Submission failed. Please verify your RLS permissions and try again.' });
+    } catch (e: unknown) {
+      console.error('Submission failed:', e);
+      setErrors({ submit: e instanceof Error ? e.message : 'Submission failed. Please try again.' });
     } finally {
       setSubmitting(false);
     }
@@ -273,7 +281,7 @@ export default function OnboardingPage() {
     );
   }
 
-  const progress = ((step - 1) / 5) * 100;
+    const progress = ((step - 1) / 6) * 100;
 
   return (
     <div style={{ minHeight: '100dvh', background: '#060f1e', color: 'white', fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif' }}>
@@ -289,7 +297,7 @@ export default function OnboardingPage() {
             </div>
             <span style={{ fontWeight: 900, fontSize: '14px', color: 'white' }}>GLOBAL<span style={{ color: '#22c55e' }}>HUB</span></span>
           </Link>
-          <span style={{ color: '#6b7280', fontSize: '12px', fontWeight: 700 }}>Step {step} of 6</span>
+                    <span style={{ color: '#6b7280', fontSize: '12px', fontWeight: 700 }}>Step {step} of 7</span>
         </div>
 
         {/* Progress Bar */}
@@ -412,12 +420,21 @@ export default function OnboardingPage() {
               { key: 'facebook', label: 'Facebook Page', placeholder: 'https://facebook.com/...', icon: '📘' },
               { key: 'linkedin', label: 'LinkedIn Profile', placeholder: 'https://linkedin.com/in/...', icon: '💼' },
               { key: 'twitter', label: 'Twitter / X Profile', placeholder: 'https://x.com/...', icon: '🐦' },
-            ].map(field => (
-              <div key={field.key} style={{ marginBottom: '14px' }}>
-                <label style={labelStyle}>{field.icon} {field.label}</label>
-                <input type="text" value={(form as Record<string, any>)[field.key]} onChange={e => set(field.key as keyof FormData, e.target.value)} placeholder={field.placeholder} style={inputStyle} />
-              </div>
-            ))}
+            ].map(field => {
+              const fieldKey = field.key as keyof FormData;
+              return (
+                <div key={field.key} style={{ marginBottom: '14px' }}>
+                  <label style={labelStyle}>{field.icon} {field.label}</label>
+                  <input
+                    type="text"
+                    value={String(form[fieldKey] ?? '')}
+                    onChange={e => set(fieldKey, e.target.value)}
+                    placeholder={field.placeholder}
+                    style={inputStyle}
+                  />
+                </div>
+              );
+            })}
             {errors.website && <p style={errStyle}>⚠️ {errors.website}</p>}
           </div>
         )}
@@ -515,9 +532,10 @@ export default function OnboardingPage() {
                 { key: 'agree_support', text: 'I will provide authentic support channels for all paying buyers.' },
                 { key: 'agree_complaints', text: 'I understand that high marketplace dispute ratios can lead to provider onboarding suspension.' },
               ].map(item => {
-                const checked = (form as Record<string, any>)[item.key];
+                const key = item.key as keyof FormData;
+                const checked = Boolean(form[key]);
                 return (
-                  <div key={item.key} onClick={() => set(item.key as keyof FormData, !checked)} style={{ display: 'flex', gap: '14px', alignItems: 'center', background: checked ? 'rgba(34,197,94,0.05)' : '#0a1628', border: `1px solid ${checked ? 'rgba(34,197,94,0.25)' : '#1a2740'}`, borderRadius: '12px', padding: '16px', cursor: 'pointer' }}>
+                  <div key={item.key} onClick={() => set(key, !checked)} style={{ display: 'flex', gap: '14px', alignItems: 'center', background: checked ? 'rgba(34,197,94,0.05)' : '#0a1628', border: `1px solid ${checked ? 'rgba(34,197,94,0.25)' : '#1a2740'}`, borderRadius: '12px', padding: '16px', cursor: 'pointer' }}>
                     <div style={{ width: '20px', height: '20px', borderRadius: '4px', border: `2px solid ${checked ? '#22c55e' : '#374151'}`, background: checked ? '#22c55e' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {checked && <CheckCircle size={12} color="black" />}
                     </div>
@@ -572,13 +590,99 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        {/* Step 6 */}
+        {/* Step 6 — Identity (new) */}
         {step === 6 && (
           <div>
             <div style={{ marginBottom: '28px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                <div style={{ width: '40px', height: '40px', background: 'rgba(96,165,250,0.1)', border: '1px solid rgba(96,165,250,0.2)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Shield size={20} color="#60a5fa" />
+                </div>
+                <div>
+                  <h2 style={{ fontWeight: 900, fontSize: '20px', marginBottom: '2px' }}>Identity Verification</h2>
+                  <p style={{ color: '#6b7280', fontSize: '13px' }}>Upload KYC documents for review</p>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ background: 'rgba(96,165,250,0.05)', border: '1px solid rgba(96,165,250,0.15)', borderRadius: '12px', padding: '14px 16px', marginBottom: '20px', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+              <AlertTriangle size={16} color="#60a5fa" style={{ flexShrink: 0, marginTop: '1px' }} />
+              <p style={{ color: '#bfdbfe', fontSize: '13px', lineHeight: 1.6, margin: 0 }}>
+                All documents are stored privately and only visible to GlobalHub reviewers.
+                Accepted formats: <strong>JPG, PNG, PDF</strong> (max 10 MB each).
+              </p>
+            </div>
+
+            {[
+              { key: 'national_id_front' as const, label: 'National ID — Front *', hint: 'Clear photo of the front of your ID', accept: '.jpg,.jpeg,.png' },
+              { key: 'national_id_back' as const, label: 'National ID — Back *', hint: 'Clear photo of the back of your ID', accept: '.jpg,.jpeg,.png' },
+              { key: 'proof_of_address' as const, label: 'Proof of Address *', hint: 'Utility bill or bank statement', accept: '.jpg,.jpeg,.png,.pdf' },
+              { key: 'passport' as const, label: 'Passport (optional)', hint: 'Photo page of your passport', accept: '.jpg,.jpeg,.png,.pdf' },
+            ].map(field => {
+              const selected = files[field.key];
+              const errMsg = errors[field.key];
+              return (
+                <div key={field.key} style={{ marginBottom: '16px' }}>
+                  <label style={labelStyle}>{field.label}</label>
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '10px',
+                      padding: '18px',
+                      background: selected ? 'rgba(34,197,94,0.08)' : '#0a1628',
+                      border: `1.5px dashed ${errMsg ? '#f87171' : selected ? '#22c55e' : '#1a2740'}`,
+                      borderRadius: '12px',
+                      cursor: 'pointer',
+                      color: selected ? '#86efac' : '#9ca3af',
+                      fontSize: '13px',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    <input
+                      type="file"
+                      accept={field.accept}
+                      style={{ display: 'none' }}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0] || null;
+                        setFiles(prev => ({ ...prev, [field.key]: f }));
+                        setErrors(prev => {
+                          const n = { ...prev };
+                          delete n[field.key];
+                          return n;
+                        });
+                      }}
+                    />
+                    {selected ? (
+                      <>
+                        <CheckCircle size={16} color="#22c55e" />
+                        <span style={{ fontWeight: 700 }}>{selected.name}</span>
+                        <span style={{ color: '#6b7280', fontSize: '11px' }}>
+                          ({(selected.size / 1024 / 1024).toFixed(2)} MB)
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <FileText size={16} />
+                        <span>{field.hint}</span>
+                      </>
+                    )}
+                  </label>
+                  {errMsg && <p style={errStyle}>{errMsg}</p>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Step 7 — Agreement */}
+        {step === 7 && (
+          <div>
+            <div style={{ marginBottom: '28px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
                 <div style={{ width: '40px', height: '40px', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <FileText size={20} color="#22c55e" />
+                  <CheckCircle size={20} color="#22c55e" />
                 </div>
                 <div>
                   <h2 style={{ fontWeight: 900, fontSize: '20px', marginBottom: '2px' }}>Final Onboarding Agreements</h2>
@@ -593,9 +697,10 @@ export default function OnboardingPage() {
                 { key: 'agree_escrow', label: 'Escrow & Safety Payment Policy', text: 'I understand payments are held in escrow safely until delivery verification rules confirm service parameters.' },
                 { key: 'agree_fees', label: 'Platform Fee Structure Agreement', text: 'I acknowledge the default platform service cuts applied on completed order payments.' },
               ].map(item => {
-                const checked = (form as Record<string, any>)[item.key];
+                const key = item.key as keyof FormData;
+                const checked = Boolean(form[key]);
                 return (
-                  <div key={item.key} onClick={() => set(item.key as keyof FormData, !checked)} style={{ background: '#0a1628', border: `1px solid ${checked ? '#22c55e' : '#1a2740'}`, padding: '16px', borderRadius: '12px', cursor: 'pointer' }}>
+                  <div key={item.key} onClick={() => set(key, !checked)} style={{ background: '#0a1628', border: `1px solid ${checked ? '#22c55e' : '#1a2740'}`, padding: '16px', borderRadius: '12px', cursor: 'pointer' }}>
                     <h4 style={{ margin: '0 0 4px 0', fontSize: '14px', color: '#22c55e' }}>{item.label}</h4>
                     <p style={{ margin: 0, fontSize: '13px', color: '#9ca3af' }}>{item.text}</p>
                   </div>
@@ -614,7 +719,7 @@ export default function OnboardingPage() {
               <ArrowLeft size={16} /> Previous
             </button>
             <button onClick={next} disabled={submitting} style={{ flex: 2, background: '#22c55e', color: 'black', border: 'none', borderRadius: '12px', padding: '14px', fontWeight: 900, fontSize: '15px', cursor: submitting ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-              {submitting ? 'Processing Application...' : step === 6 ? <>Submit Application <CheckCircle size={16} /></> : <>Next Step <ArrowRight size={16} /></>}
+              {submitting ? 'Processing Application...' : step === 7 ? <>Submit Application <CheckCircle size={16} /></> : <>Next Step <ArrowRight size={16} /></>}
             </button>
           </div>
         </div>
