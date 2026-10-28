@@ -5,8 +5,9 @@ import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 import {
   Menu, X, Trophy, TrendingUp, Zap,
-    User, LogOut, HelpCircle,
-  Shield, FileText, Heart, ShoppingCart, ShoppingBag
+  User, LogOut, HelpCircle,
+  Shield, FileText, Heart, ShoppingCart, ShoppingBag,
+  Sparkles, Briefcase, Users,
 } from 'lucide-react';
 import { useCart } from '@/lib/cart';
 
@@ -74,12 +75,15 @@ export default function GlobalNav() {
     { icon: Trophy, label: 'Register', href: '/register', color: '#22c55e' },
   ];
 
-  const infoLinks = [
-    { icon: TrendingUp, label: 'Become a Provider', href: '/become-provider', color: '#22c55e' },
-    { icon: HelpCircle, label: 'FAQ', href: '/faq', color: '#6b7280' },
-    { icon: Shield, label: 'Support', href: '/support', color: '#6b7280' },
-    { icon: FileText, label: 'Terms', href: '/terms', color: '#6b7280' },
-    { icon: Heart, label: 'Responsible Gaming', href: '/responsible-gaming', color: '#6b7280' },
+    const infoLinks = [
+    { icon: Sparkles,      label: 'Partner Program',   href: '/company',             color: '#22c55e' },
+    { icon: TrendingUp,    label: 'Become a Provider', href: '/become-provider',     color: '#22c55e' },
+    { icon: Briefcase,     label: 'Become a Vendor',   href: '/onboarding/vendor',   color: '#60a5fa' },
+    { icon: Users,         label: 'Become a Marketer', href: '/onboarding/marketer', color: '#a78bfa' },
+    { icon: HelpCircle,    label: 'FAQ',               href: '/faq',                 color: '#6b7280' },
+    { icon: Shield,        label: 'Support',           href: '/support',             color: '#6b7280' },
+    { icon: FileText,      label: 'Terms',             href: '/terms',               color: '#6b7280' },
+    { icon: Heart,         label: 'Responsible Gaming', href: '/responsible-gaming', color: '#6b7280' },
   ];
 
   const isActive = (href: string) => pathname === href;

@@ -590,21 +590,28 @@ export default function LandingPage(): ReactElement {
             ))}
           </div>
 
-          <div>
+                   <div>
             <p style={{ color: 'var(--text)', fontWeight: 800, fontSize: 13, marginBottom: 14, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
               {t('footer.company')}
             </p>
             {[
-              { label: t('nav.becomeProvider'), href: '/become-provider' },
-              { label: t('nav.support'), href: '/support' },
-              { label: t('nav.faq'), href: '/faq' },
+              { label: t('nav.partnerProgram'),  href: '/company',             color: '#22c55e' },
+              { label: t('nav.becomeProvider'),  href: '/become-provider',     color: '#22c55e' },
+              { label: t('nav.becomeVendor'),    href: '/onboarding/vendor',   color: '#60a5fa' },
+              { label: t('nav.becomeMarketer'),  href: '/onboarding/marketer', color: '#a78bfa' },
+              { label: t('nav.support'),         href: '/support' },
+              { label: t('nav.faq'),             href: '/faq' },
             ].map(l => (
               <Link
                 key={l.href}
                 href={l.href}
                 style={{
-                  display: 'block', color: 'var(--text-muted)',
-                  fontSize: 13, textDecoration: 'none', marginBottom: 10,
+                  display: 'block',
+                  color: l.color ?? 'var(--text-muted)',
+                  fontSize: 13,
+                  fontWeight: l.color ? 700 : 400,
+                  textDecoration: 'none',
+                  marginBottom: 10,
                 }}
               >
                 {l.label}
