@@ -34,6 +34,26 @@ const DOC_MIME_RULES: Record<string, Set<string>> = {
   tax_id: ALL_DOC_MIMES,
 };
 
+// Server-side filename blocklist (second defense after client-side)
+const BLOCKED_FILENAME_PATTERNS = [
+  'assignment', 'homework', 'essay', 'thesis', 'lecture',
+  'syllabus', 'curriculum', 'slides', 'presentation',
+  'resume', 'cv', 'coursework', 'project', 'proposal',
+];
+
+function isBlockedFilename(name: string): { blocked: boolean; reason?: string } {
+  const lower = name.toLowerCase();
+  for (const pat of BLOCKED_FILENAME_PATTERNS) {
+    if (lower.includes(pat)) {
+      return {
+        blocked: true,
+        reason: `Filename "${name}" doesn't look like a personal document. Please upload your actual ID / utility bill.`,
+      };
+    }
+  }
+  return { blocked: false };
+}
+
 const EXT_BY_MIME: Record<string, string> = {
   'application/pdf': 'pdf',
   'image/jpeg': 'jpg',
@@ -100,6 +120,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ─── Name confirmation gate ───
+    if (payload.name_confirmed_by_user !== true) {
+      return NextResponse.json({
+        error: 'You must confirm that the name on your ID matches your entered full name.',
+      }, { status: 400 });
+    }
+
     // ─── Collect files from form ─────────────────────────────
     const filesByDocType: Record<string, File> = {};
     for (const [key, value] of form.entries()) {
@@ -133,6 +160,11 @@ export async function POST(req: NextRequest) {
       }
       if (file.size === 0) {
         return NextResponse.json({ error: `${docType}: file is empty` }, { status: 400 });
+      }
+
+      const fnCheck = isBlockedFilename(file.name);
+      if (fnCheck.blocked) {
+        return NextResponse.json({ error: `${docType}: ${fnCheck.reason}` }, { status: 400 });
       }
     }
 
@@ -227,6 +259,8 @@ export async function POST(req: NextRequest) {
           file_size: file.size,
           mime_type: file.type,
           uploaded_by: user.id,
+          name_confirmed_by_user: true,
+          name_confirmed_at: new Date().toISOString(),
         });
 
       if (docErr) {

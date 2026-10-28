@@ -78,6 +78,7 @@ export default function OnboardingPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [nameConfirmed, setNameConfirmed] = useState(false);
   // KYC files
   const [files, setFiles] = useState<{
     national_id_front: File | null;
@@ -106,6 +107,22 @@ export default function OnboardingPage() {
   const set = (key: keyof FormData, value: string | boolean) => {
     setForm(prev => ({ ...prev, [key]: value }));
     setErrors(prev => { const n = { ...prev }; delete n[key]; return n; });
+  };
+
+  const BLOCKED_FILENAME_PATTERNS = [
+    'assignment', 'homework', 'essay', 'thesis', 'lecture',
+    'syllabus', 'curriculum', 'slides', 'presentation',
+    'resume', 'cv', 'coursework', 'project', 'proposal',
+  ];
+
+  const checkFilename = (name: string): string | null => {
+    const lower = name.toLowerCase();
+    for (const pat of BLOCKED_FILENAME_PATTERNS) {
+      if (lower.includes(pat)) {
+        return `This filename doesn't look like a personal document. Please upload your actual ID / utility bill, not "${name}".`;
+      }
+    }
+    return null;
   };
 
   const validateStep = (): boolean => {
@@ -140,10 +157,11 @@ export default function OnboardingPage() {
       if (!form.payout_name.trim()) errs.payout_name = 'Account holder name is required';
       if (!form.payout_identifier.trim()) errs.payout_identifier = 'Payment identifier is required';
     }
-        if (step === 6) {
+    if (step === 6) {
       if (!files.national_id_front) errs.national_id_front = 'Front of national ID is required';
       if (!files.national_id_back) errs.national_id_back = 'Back of national ID is required';
       if (!files.proof_of_address) errs.proof_of_address = 'Proof of address is required';
+      if (!nameConfirmed) errs.name_confirmed = 'You must confirm the name matches your ID';
     }
     if (step === 7) {
       if (!form.agree_terms || !form.agree_escrow || !form.agree_fees)
@@ -208,6 +226,7 @@ export default function OnboardingPage() {
         agree_terms: form.agree_terms,
         agree_escrow: form.agree_escrow,
         agree_fees: form.agree_fees,
+        name_confirmed_by_user: nameConfirmed,
       }));
 
       // Files
@@ -590,7 +609,7 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        {/* Step 6 — Identity (new) */}
+        {/* Step 6 — Identity verification */}
         {step === 6 && (
           <div>
             <div style={{ marginBottom: '28px' }}>
@@ -599,8 +618,8 @@ export default function OnboardingPage() {
                   <Shield size={20} color="#60a5fa" />
                 </div>
                 <div>
-                  <h2 style={{ fontWeight: 900, fontSize: '20px', marginBottom: '2px' }}>Identity Verification</h2>
-                  <p style={{ color: '#6b7280', fontSize: '13px' }}>Upload KYC documents for review</p>
+                  <h2 style={{ fontWeight: 900, fontSize: '20px', marginBottom: '2px' }}>Identity verification</h2>
+                  <p style={{ color: '#6b7280', fontSize: '13px' }}>We verify your identity to protect everyone on the platform</p>
                 </div>
               </div>
             </div>
@@ -626,18 +645,13 @@ export default function OnboardingPage() {
                   <label style={labelStyle}>{field.label}</label>
                   <label
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '10px',
-                      padding: '18px',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      gap: '10px', padding: '18px',
                       background: selected ? 'rgba(34,197,94,0.08)' : '#0a1628',
                       border: `1.5px dashed ${errMsg ? '#f87171' : selected ? '#22c55e' : '#1a2740'}`,
-                      borderRadius: '12px',
-                      cursor: 'pointer',
+                      borderRadius: '12px', cursor: 'pointer',
                       color: selected ? '#86efac' : '#9ca3af',
-                      fontSize: '13px',
-                      transition: 'all 0.2s',
+                      fontSize: '13px', transition: 'all 0.2s',
                     }}
                   >
                     <input
@@ -646,6 +660,13 @@ export default function OnboardingPage() {
                       style={{ display: 'none' }}
                       onChange={(e) => {
                         const f = e.target.files?.[0] || null;
+                        if (f) {
+                          const fnErr = checkFilename(f.name);
+                          if (fnErr) {
+                            setErrors(prev => ({ ...prev, [field.key]: fnErr }));
+                            return;
+                          }
+                        }
                         setFiles(prev => ({ ...prev, [field.key]: f }));
                         setErrors(prev => {
                           const n = { ...prev };
@@ -673,6 +694,40 @@ export default function OnboardingPage() {
                 </div>
               );
             })}
+
+            {/* Name match confirmation */}
+            <div style={{
+              marginTop: '24px',
+              padding: '18px',
+              background: nameConfirmed ? 'rgba(34,197,94,0.05)' : 'rgba(251,191,36,0.05)',
+              border: `1.5px solid ${nameConfirmed ? 'rgba(34,197,94,0.3)' : 'rgba(251,191,36,0.3)'}`,
+              borderRadius: '12px',
+            }}>
+              <p style={{ color: '#e5e7eb', fontSize: '13px', fontWeight: 700, marginBottom: '8px' }}>
+                Name verification
+              </p>
+              <p style={{ color: '#9ca3af', fontSize: '13px', lineHeight: 1.6, marginBottom: '14px' }}>
+                The name on your National ID must exactly match:
+                <br />
+                <strong style={{ color: 'white', fontSize: '15px' }}>{form.full_name || '(enter your full name in Step 1)'}</strong>
+              </p>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={nameConfirmed}
+                  onChange={(e) => {
+                    setNameConfirmed(e.target.checked);
+                    setErrors(prev => { const n = { ...prev }; delete n.name_confirmed; return n; });
+                  }}
+                  style={{ marginTop: '3px', width: '18px', height: '18px', cursor: 'pointer', accentColor: '#22c55e' }}
+                />
+                <span style={{ color: nameConfirmed ? '#86efac' : '#9ca3af', fontSize: '13px', lineHeight: 1.5 }}>
+                  I confirm the name shown on my uploaded National ID is <strong>"{form.full_name}"</strong>.
+                  I understand that mismatched names will delay or reject my application.
+                </span>
+              </label>
+              {errors.name_confirmed && <p style={errStyle}>{errors.name_confirmed}</p>}
+            </div>
           </div>
         )}
 
